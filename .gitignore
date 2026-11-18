@@ -1,0 +1,65 @@
+# ---------------------------------------------------------------- 数据库（1 GB+，绝不入库）
+# astock.db 是本地行情库，还包含用户密码哈希与会话，必须忽略
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/*.sqlite
+
+# ---------------------------------------------------------------- Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+
+# ---------------------------------------------------------------- 日志 / 临时产物
+*.log
+logs/
+tmp/
+.tmp/
+*.tmp
+*.bak
+*.orig
+*.rej
+*.swp
+*~
+
+# 导出的表格（CSV/Excel 属于运行产物）
+screen_*.csv
+*.xlsx
+
+# ---------------------------------------------------------------- 编辑器 / 系统
+.vscode/
+.idea/
+*.code-workspace
+*.sublime-*
+.DS_Store
+._*
+Thumbs.db
+desktop.ini
+
+# ---------------------------------------------------------------- 容器 / 部署产物
+*.tar
+*.tar.gz
+docker-compose.override.yml
+
+# ---------------------------------------------------------------- 本地配置与密钥
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cookie
+secrets.json

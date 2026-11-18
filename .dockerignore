@@ -1,0 +1,26 @@
+# 数据库（1 GB+）不进镜像，用 volume 挂载
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# 版本库 / 编辑器 / 系统垃圾
+.git/
+.gitignore
+.vscode/
+.idea/
+*.code-workspace
+.DS_Store
+Thumbs.db
+
+# 本地脚本与临时产物
+tmp/
+*.log
+*.csv
+*.xlsx

@@ -1,0 +1,3 @@
+# 运行依赖：除 stdlib 外只用到 pandas / numpy
+pandas>=2.2,<4
+numpy>=1.26,<3

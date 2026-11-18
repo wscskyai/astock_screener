@@ -1,0 +1,28 @@
+services:
+  astock:
+    build: .
+    image: astock-screener:latest
+    container_name: astock-screener
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    environment:
+      TZ: Asia/Shanghai
+      ASTOCK_DB: /app/data/astock.db
+    volumes:
+      # 数据库与同步数据都放这里：必须用「本地存储卷/共享文件夹」，
+      # 不要挂 SMB / NFS 网络盘（SQLite 的 WAL 在网络文件系统上不可靠）
+      - ./data:/app/data
+    # 内存实测约 1.4 GB（预热完成后），给个软限制方便 NAS 上看
+    mem_limit: 3g
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:5001/api/me"]
+      interval: 30s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{SITE_TITLE}}</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="/static/home.css">
+<script src="/static/icons.js"></script>
+<script src="/static/theme.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">A</span>
+    <div>
+      <h1>{{SITE_TITLE}}</h1>
+      <p class="sub">指数行情 · 分时 / 日周月 K 线 · 实时抓取（不入库）</p>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <button class="pill pill-btn theme-btn" data-theme-btn title="切换主题">
+      <span class="i-moon" data-icon="moon" data-icon-size="16"></span>
+      <span class="i-sun" data-icon="sun" data-icon-size="16"></span>
+    </button>
+    <a class="pill pill-btn nav-on" href="/" aria-current="page" title="指数首页">
+      <span data-icon="home" data-icon-size="14"></span>指数
+    </a>
+    <a class="pill pill-btn" href="/screen" title="去选股筛选">
+      <span data-icon="search" data-icon-size="14"></span>选股筛选
+    </a>
+    <a id="favBtn" class="pill pill-btn" href="/fav" title="我的收藏">
+      <span class="star-on" data-icon="star" data-icon-size="14" data-icon-filled="1"></span>收藏
+      <span class="pill-sub" id="favCount" hidden></span>
+    </a>
+    <a id="userBtn" class="pill pill-btn" href="/screen?login=1" title="登录 / 注册">
+      <span data-icon="user" data-icon-size="14"></span><span id="userLabel">登录 / 注册</span>
+    </a>
+    <a class="pill pill-btn" href="/screen?db=1" title="本地数据管理">
+      <span data-icon="database" data-icon-size="14"></span>本地库
+    </a>
+  </div>
+</header>
+
+<main class="idx-page">
+  <div class="idx-strip" id="idxStrip">
+    <div class="idx-cell loading">正在加载指数行情…</div>
+  </div>
+
+  <div class="idx-bar">
+    <div class="ib-main">
+      <span class="ib-name" id="ibName">上证指数</span>
+      <span class="ib-price" id="ibPrice">—</span>
+      <span class="ib-chg" id="ibChg">—</span>
+    </div>
+    <div class="ib-stats">
+      <div><span>最新</span><b id="ibLast">—</b></div>
+      <div><span>最高</span><b id="ibHigh">—</b></div>
+      <div><span>最低</span><b id="ibLow">—</b></div>
+      <div><span>成交额</span><b id="ibAmount">—</b></div>
+      <div><span>成交量</span><b id="ibVol">—</b></div>
+      <div><span>数据时间</span><b id="ibTime">—</b></div>
+    </div>
+    <div class="ib-actions">
+      <a class="pill pill-btn" id="idxThs" href="#" target="_blank" rel="noopener"
+         title="在同花顺查看该指数">
+        <span data-icon="external" data-icon-size="14"></span>同花顺
+      </a>
+    </div>
+  </div>
+
+  <div class="idx-chart-card">
+    <div class="idx-chart-head">
+      <div class="seg" id="idxMode">
+        <button data-mode="min" class="on">分时</button>
+        <button data-mode="day">日K</button>
+        <button data-mode="week">周K</button>
+        <button data-mode="month">月K</button>
+      </div>
+      <div class="seg" id="idxDays" hidden>
+        <button data-days="1" class="on">今日</button>
+        <button data-days="5">5 日</button>
+      </div>
+      <span class="spacer"></span>
+      <span class="idx-legend" id="idxLegend"><i class="lg-price"></i>价格</span>
+      <button class="pill pill-btn" id="idxRefresh" title="刷新">
+        <span data-icon="refresh" data-icon-size="14"></span>刷新
+      </button>
+    </div>
+    <canvas id="idxChart"></canvas>
+    <div class="idx-chart-tip" id="idxTip" hidden></div>
+    <div class="idx-loading" id="idxLoading" hidden><span class="spinner"></span>正在加载…</div>
+    <div class="idx-error" id="idxError" hidden></div>
+  </div>
+</main>
+
+<footer class="site-footer">© 2026 {{SITE_TITLE}} · 本地数据仅供研究参考，不构成投资建议{{ICP}}</footer>
+<div id="toast" class="toast"></div>
+<script src="/static/home.js"></script>
+</body>
+</html>

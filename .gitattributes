@@ -1,0 +1,23 @@
+# 统一按文本处理，检出时用各平台默认换行（Windows 上是 CRLF，仓库里存 LF）
+* text=auto
+
+# 明确是文本的文件
+*.py   text
+*.js   text
+*.css  text
+*.html text
+*.md   text
+*.txt  text
+*.yml  text
+*.yaml text
+*.json text
+
+# 二进制文件：不要做换行转换，也不要尝试 diff
+*.png  binary
+*.jpg  binary
+*.ico  binary
+*.svg  text
+*.db   binary
+*.pdf  binary
+*.xlsx binary
+*.docx binary

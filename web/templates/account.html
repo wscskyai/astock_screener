@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>个人中心 · {{SITE_TITLE}}</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/icons.js"></script>
+<script src="/static/theme.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">A</span>
+    <div>
+      <h1>个人中心</h1>
+      <p class="sub">账号 · 会员 · 系统设置</p>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <button class="pill pill-btn theme-btn" data-theme-btn title="切换主题">
+      <span class="i-moon" data-icon="moon" data-icon-size="16"></span>
+      <span class="i-sun" data-icon="sun" data-icon-size="16"></span>
+    </button>
+    <a class="pill pill-btn" href="/" title="指数首页">
+      <span data-icon="home" data-icon-size="14"></span>指数
+    </a>
+    <a class="pill pill-btn" href="/screen" title="去选股筛选">
+      <span data-icon="search" data-icon-size="14"></span>选股筛选
+    </a>
+    <a class="pill pill-btn" href="/fav" title="我的收藏">
+      <span class="star-on" data-icon="star" data-icon-size="14" data-icon-filled="1"></span>收藏
+      <span class="pill-sub" id="favCount">0</span>
+    </a>
+    <a id="userBtn" class="pill pill-btn nav-on" href="/account" aria-current="page">
+      👤 <span id="userLabel">—</span>
+    </a>
+    <a class="pill pill-btn" href="/screen?db=1" title="本地数据管理">
+      <i class="status-dot"></i><span data-icon="database" data-icon-size="14"></span>本地库<span class="pill-sub">· 前复权</span>
+    </a>
+  </div>
+</header>
+
+<main class="acct-page">
+  <aside class="acct-side">
+    <div class="acct-side-user">
+      <span class="acct-avatar" id="sideAvatar">—</span>
+      <div class="acct-side-meta">
+        <b id="sideName">—</b>
+        <span class="role-badge" id="sideRole">普通用户</span>
+      </div>
+    </div>
+    <div class="acct-side-sep"></div>
+    <nav class="acct-menu" aria-label="个人中心菜单">
+      <button class="acct-menu-item on" data-panel="profile">
+        <span data-icon="user" data-icon-size="15"></span>账号信息
+      </button>
+      <button class="acct-menu-item" data-panel="password">
+        <span data-icon="lock" data-icon-size="15"></span>修改密码
+      </button>
+      <div class="acct-menu-sep" data-admin hidden></div>
+      <div class="acct-menu-group" data-admin hidden>管理</div>
+      <button class="acct-menu-item" data-panel="users" data-admin hidden>
+        <span data-icon="users" data-icon-size="15"></span>用户管理
+      </button>
+      <button class="acct-menu-item" data-panel="settings" data-admin hidden>
+        <span data-icon="sliders" data-icon-size="15"></span>系统配置
+      </button>
+      <div class="acct-menu-sep"></div>
+      <button class="acct-menu-item danger" id="acctLogout">
+        <span data-icon="arrowLeft" data-icon-size="15"></span>退出登录
+      </button>
+    </nav>
+  </aside>
+
+  <section class="acct-main">
+    <!-- 账号信息 -->
+    <div class="acct-panel" data-panel-view="profile">
+      <div class="acct-page-head">
+        <h2>账号信息</h2>
+        <p>查看账号资料、修改昵称</p>
+      </div>
+
+      <div class="acct-section">
+        <div class="acct-profile-top">
+          <span class="acct-avatar xl" id="acctAvatar">—</span>
+          <div class="acct-profile-id">
+            <h3 id="acctNick">—</h3>
+            <p><span class="role-badge" id="acctRole">普通用户</span></p>
+          </div>
+        </div>
+        <dl class="acct-info-grid">
+          <div class="acct-info-tile"><dt>用户名</dt><dd id="acctName">—</dd></div>
+          <div class="acct-info-tile"><dt>注册时间</dt><dd id="acctCreated">—</dd></div>
+          <div class="acct-info-tile"><dt>最近登录</dt><dd id="acctLogin">—</dd></div>
+          <div class="acct-info-tile"><dt>收藏股票</dt><dd id="acctFavs">—</dd></div>
+        </dl>
+      </div>
+
+      <div class="acct-section">
+        <div class="acct-card-head">
+          <span class="acct-card-ico" data-icon="user" data-icon-size="16"></span>
+          <div>
+            <h4>修改昵称</h4>
+            <p>昵称会显示在顶栏、收藏页和会员列表里</p>
+          </div>
+        </div>
+        <form id="nickForm" class="acct-form" autocomplete="off">
+          <div class="acct-field">
+            <label for="nickInput">昵称</label>
+            <div class="acct-input-row">
+              <input id="nickInput" type="text" placeholder="输入 1~20 个字符的昵称" maxlength="20">
+              <button type="submit" class="primary">保存昵称</button>
+            </div>
+            <div class="acct-field-foot">
+              <span>支持中英文、数字和符号</span>
+              <span class="acct-count" id="nickCount">0/20</span>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 修改密码 -->
+    <div class="acct-panel" data-panel-view="password" hidden>
+      <div class="acct-page-head">
+        <h2>修改密码</h2>
+        <p>需要验证原密码，修改后当前登录仍然有效</p>
+      </div>
+      <div class="acct-section">
+        <div class="acct-card-head">
+          <span class="acct-card-ico" data-icon="lock" data-icon-size="16"></span>
+          <div>
+            <h4>登录密码</h4>
+            <p>建议使用字母 + 数字组合，至少 6 位</p>
+          </div>
+        </div>
+        <form id="pwdForm" class="acct-form acct-form-narrow" autocomplete="off">
+          <div class="acct-field">
+            <label for="pwdOld">原密码</label>
+            <div class="acct-input-icon">
+              <input id="pwdOld" type="password" placeholder="请输入当前密码" autocomplete="current-password" maxlength="64">
+              <button type="button" class="pwd-eye" data-eye="pwdOld" title="显示 / 隐藏密码" aria-label="显示或隐藏密码">
+                <span class="eye-show" data-icon="eye" data-icon-size="16"></span>
+                <span class="eye-hide" data-icon="eyeOff" data-icon-size="16"></span>
+              </button>
+            </div>
+          </div>
+          <div class="acct-field">
+            <label for="pwdNew">新密码</label>
+            <div class="acct-input-icon">
+              <input id="pwdNew" type="password" placeholder="至少 6 位" autocomplete="new-password" maxlength="64">
+              <button type="button" class="pwd-eye" data-eye="pwdNew" title="显示 / 隐藏密码" aria-label="显示或隐藏密码">
+                <span class="eye-show" data-icon="eye" data-icon-size="16"></span>
+                <span class="eye-hide" data-icon="eyeOff" data-icon-size="16"></span>
+              </button>
+            </div>
+          </div>
+          <div class="acct-field">
+            <label for="pwdNew2">确认新密码</label>
+            <div class="acct-input-icon">
+              <input id="pwdNew2" type="password" placeholder="再输入一次新密码" autocomplete="new-password" maxlength="64">
+              <button type="button" class="pwd-eye" data-eye="pwdNew2" title="显示 / 隐藏密码" aria-label="显示或隐藏密码">
+                <span class="eye-show" data-icon="eye" data-icon-size="16"></span>
+                <span class="eye-hide" data-icon="eyeOff" data-icon-size="16"></span>
+              </button>
+            </div>
+          </div>
+          <div class="acct-form-actions">
+            <button type="submit" class="primary" id="pwdSave">保存新密码</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 用户管理 -->
+    <div class="acct-panel" data-panel-view="users" hidden>
+      <div class="acct-page-head">
+        <h2>用户管理</h2>
+        <p>查看会员、创建用户、重置密码、调整角色与删除</p>
+      </div>
+      <div class="acct-section">
+        <div class="acct-section-head">
+          <div class="acct-card-head">
+            <span class="acct-card-ico" data-icon="users" data-icon-size="16"></span>
+            <div>
+              <h4>会员列表</h4>
+              <p>管理员可管理所有注册会员</p>
+            </div>
+          </div>
+          <span class="acct-count-pill" id="userTotal"></span>
+        </div>
+
+        <div class="acct-create">
+          <div class="acct-create-head">
+            <b>新建会员</b>
+            <span>创建后即可使用初始密码登录</span>
+          </div>
+          <form id="newUserForm" class="acct-create-grid" autocomplete="off">
+            <label class="acct-field">
+              <span>用户名</span>
+              <input id="newUserName" type="text" placeholder="2~20 个字符" maxlength="20">
+            </label>
+            <label class="acct-field">
+              <span>初始密码</span>
+              <input id="newUserPass" type="password" placeholder="至少 6 位" maxlength="64">
+            </label>
+            <label class="acct-field">
+              <span>角色</span>
+              <select id="newUserRole">
+                <option value="user">普通用户</option>
+                <option value="admin">管理员</option>
+              </select>
+            </label>
+            <button type="submit" class="primary">创建会员</button>
+          </form>
+        </div>
+
+        <div class="acct-table-wrap">
+          <table class="acct-table">
+            <thead>
+              <tr>
+                <th>会员</th><th>角色</th><th class="num">收藏</th>
+                <th>注册时间</th><th>最近登录</th><th class="acct-act-col"></th>
+              </tr>
+            </thead>
+            <tbody id="userRows">
+              <tr><td colspan="6" class="acct-empty">加载中…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="acct-hint">管理员可重置密码、调整角色、删除用户；不能删除自己或最后一个管理员。</p>
+      </div>
+    </div>
+
+    <!-- 系统配置 -->
+    <div class="acct-panel" data-panel-view="settings" hidden>
+      <div class="acct-page-head">
+        <h2>系统配置</h2>
+        <p>网站运营参数，仅管理员可修改</p>
+      </div>
+      <form id="siteForm" class="site-form" autocomplete="off">
+        <div class="acct-section">
+          <div class="acct-card-head">
+            <span class="acct-card-ico" data-icon="sliders" data-icon-size="16"></span>
+            <div>
+              <h4>站点信息</h4>
+              <p>用于浏览器标题、页脚和统计</p>
+            </div>
+          </div>
+          <div class="acct-field">
+            <label for="cfgTitle">网站标题</label>
+            <input id="cfgTitle" type="text" maxlength="60" placeholder="A 股选股系统">
+            <span class="acct-field-hint">显示在浏览器标签、首页品牌标题和页脚</span>
+          </div>
+          <div class="acct-field">
+            <label for="cfgIcp">备案编号</label>
+            <input id="cfgIcp" type="text" maxlength="100" placeholder="如：粤ICP备xxxxxxxx号">
+            <span class="acct-field-hint">填写后显示在页脚，并链接到工信部备案查询</span>
+          </div>
+          <div class="acct-field">
+            <label for="cfgAnalytics">统计代码</label>
+            <textarea id="cfgAnalytics" rows="4" maxlength="5000"
+                      placeholder="粘贴统计脚本（如百度统计 / Umami），保存后注入页面底部"></textarea>
+            <span class="acct-field-hint">支持直接粘贴完整的 &lt;script&gt; 代码</span>
+          </div>
+        </div>
+
+        <div class="acct-section">
+          <div class="acct-card-head">
+            <span class="acct-card-ico" data-icon="database" data-icon-size="16"></span>
+            <div>
+              <h4>注册与同步</h4>
+              <p>控制新用户注册和每日数据更新</p>
+            </div>
+          </div>
+
+          <label class="acct-switch-row">
+            <span class="acct-switch-text">
+              <b>允许注册新用户</b>
+              <span>关闭后登录框不再显示注册入口</span>
+            </span>
+            <input type="checkbox" id="cfgAllowRegister">
+            <span class="acct-switch-track"></span>
+          </label>
+
+          <label class="acct-switch-row">
+            <span class="acct-switch-text">
+              <b>每天自动同步数据</b>
+              <span>依次更新日线、估值、市值、股东户数和财务数据</span>
+            </span>
+            <input type="checkbox" id="cfgAutoSync">
+            <span class="acct-switch-track"></span>
+          </label>
+
+          <div class="acct-field acct-field-inline">
+            <label for="cfgSyncTime">自动同步时间</label>
+            <input type="time" id="cfgSyncTime" step="60">
+            <span class="acct-field-hint">按服务器本地时间；若到点时已有同步任务在跑，本次会跳过</span>
+          </div>
+
+          <div class="acct-savebar">
+            <span class="acct-field-hint" id="cfgLastSync">上次自动同步：—</span>
+            <button type="submit" id="siteSave" class="primary">保存配置</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">© 2026 {{SITE_TITLE}} · 本地数据仅供研究参考，不构成投资建议{{ICP}}</footer>
+<div id="toast" class="toast"></div>
+<script src="/static/account.js"></script>
+</body>
+</html>

@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>我的收藏 · {{SITE_TITLE}}</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/icons.js"></script>
+<script src="/static/theme.js"></script>
+</head>
+<body class="fav-page-body">
+<header class="topbar fav-topbar">
+  <div class="brand">
+    <span class="logo">A</span>
+    <div>
+      <h1>我的收藏</h1>
+      <p class="sub">自选股 · 估值 / 财务 / 跟进记录</p>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <button class="pill pill-btn theme-btn" data-theme-btn title="切换主题">
+      <span class="i-moon" data-icon="moon" data-icon-size="16"></span>
+      <span class="i-sun" data-icon="sun" data-icon-size="16"></span>
+    </button>
+    <a class="pill pill-btn" href="/" title="指数首页">
+      <span data-icon="home" data-icon-size="14"></span>指数
+    </a>
+    <a class="pill pill-btn" href="/screen" title="去选股筛选">
+      <span data-icon="search" data-icon-size="14"></span>选股筛选
+    </a>
+    <a class="pill pill-btn nav-on" href="/fav" aria-current="page" title="我的收藏">
+      <span class="star-on" data-icon="star" data-icon-size="14" data-icon-filled="1"></span>收藏
+      <span class="pill-sub" id="favCount"></span>
+    </a>
+    <a id="userBtn" class="pill pill-btn" href="/screen?login=1" title="登录">
+      👤 <span id="userLabel">登录 / 注册</span>
+    </a>
+    <a class="pill pill-btn" href="/screen?db=1" title="本地数据管理">
+      <i class="status-dot"></i><span data-icon="database" data-icon-size="14"></span>本地库<span class="pill-sub">· 前复权</span>
+    </a>
+  </div>
+  <div class="fav-toolbar">
+    <div class="fav-tabs" id="favTabs"></div>
+    <span class="spacer"></span>
+    <input id="favSearch" class="kw" type="text" placeholder="搜索代码 / 名称">
+    <select id="favSort" class="cond-sel">
+      <option value="updated">最近更新</option>
+      <option value="chg">涨跌幅</option>
+      <option value="dv">股息率</option>
+      <option value="pe">PE 低到高</option>
+      <option value="pb_pct">PB 分位</option>
+      <option value="drop_pct">户数降幅</option>
+    </select>
+  </div>
+</header>
+
+<main class="fav-page">
+  <div id="loadingState" class="fav-empty fav-loading" hidden>
+    <span class="spinner"></span>
+    <p>正在加载收藏数据…</p>
+  </div>
+
+  <div id="loginHint" class="fav-empty" hidden>
+    <h3>还没有登录</h3>
+    <p>收藏是跟着账号走的，请先回选股页登录。</p>
+    <p><a class="btn-link" href="/screen?login=1"><span data-icon="arrowLeft" data-icon-size="14"></span>去登录</a></p>
+  </div>
+
+  <div class="fav-layout" id="favLayout" hidden>
+    <section class="fav-list-panel">
+      <div id="favGrid" class="fav-grid"></div>
+    </section>
+
+    <aside class="fav-detail">
+      <section class="fav-chart-card">
+        <div class="fd-head">
+          <div class="fd-title">
+            <h2 id="fdName">—</h2>
+            <span id="fdCode" class="fd-code"></span>
+          </div>
+          <div class="fd-quote">
+            <b id="fdPrice">—</b>
+            <span id="fdChg"></span>
+            <span id="fdDate"></span>
+          </div>
+        </div>
+        <div class="fd-sub">
+          <span class="fd-k">日K</span>
+          <span id="fdChartInfo">近 250 个交易日</span>
+          <span class="fd-links" id="fdLinks" hidden>
+            <a id="fdF10" href="#" target="_blank" rel="noopener" title="同花顺 F10">F10</a>
+            <a id="fdThs" href="#" target="_blank" rel="noopener" title="同花顺行情">同花顺</a>
+          </span>
+          <button id="favChartZoom" class="fd-zoom" type="button" title="放大查看" aria-label="放大查看">
+            <span data-icon="maximize" data-icon-size="13"></span>
+          </button>
+        </div>
+        <div class="fav-chart-wrap" id="favChartWrap">
+          <canvas id="favChart" title="点击放大查看"></canvas>
+          <div class="fav-chart-loading" id="favChartLoading" hidden>
+            <span class="spinner"></span>加载 K 线…
+          </div>
+          <div class="fav-chart-empty" id="favChartEmpty" hidden>暂无 K 线数据</div>
+        </div>
+      </section>
+
+      <section class="fav-notes-card">
+        <div class="fd-head">
+          <div class="fd-title">
+            <h2>跟进记录</h2>
+            <span id="fdNotesName" class="fd-code"></span>
+          </div>
+          <span id="fdNotesCount" class="fd-count">—</span>
+        </div>
+        <div class="fav-notes-list" id="favNotes">
+          <div class="tl-empty">选择左侧收藏查看记录</div>
+        </div>
+        <div class="fav-note-add">
+          <textarea id="favNoteInput" class="fav-note" rows="3" maxlength="2000"
+                    placeholder="今天为什么看好/看淡，下一步盯什么（Ctrl+Enter 提交）"
+                    disabled></textarea>
+          <div class="fav-note-side">
+            <button id="favNoteSave" class="mini" disabled><span data-icon="plus" data-icon-size="12"></span>记录</button>
+            <span class="addnote-hint">Ctrl + Enter</span>
+          </div>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <div id="emptyState" class="fav-empty" hidden>
+    <h3>还没有收藏</h3>
+    <p>在选股结果里点股票前面的 ★ 就能加进来。</p>
+    <p><a class="btn-link" href="/"><span data-icon="arrowLeft" data-icon-size="14"></span>去选股</a></p>
+  </div>
+</main>
+
+<div class="modal fav-confirm" id="deleteModal" hidden>
+  <div class="modal-card confirm-card" role="dialog" aria-modal="true" aria-labelledby="deleteTitle">
+    <div class="confirm-top">
+      <span class="confirm-ico" data-icon="trash" data-icon-size="18"></span>
+      <div>
+        <h3 id="deleteTitle">移除收藏</h3>
+        <p class="confirm-sub">移除后该股票将不再出现在收藏列表。</p>
+      </div>
+    </div>
+    <div class="confirm-target">
+      <span class="code" id="deleteCode"></span>
+      <b id="deleteName"></b>
+    </div>
+    <div class="confirm-notes" id="deleteNotes"></div>
+    <div class="confirm-actions">
+      <button id="deleteCancel" class="ghost">取消</button>
+      <button id="deleteOk" class="danger-btn">确认移除</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal fav-chart-modal" id="favChartModal" hidden>
+  <div class="fav-chart-dialog" role="dialog" aria-modal="true" aria-labelledby="fcmName">
+    <div class="fcm-head">
+      <div class="fcm-title">
+        <h3 id="fcmName">—</h3>
+        <span id="fcmCode"></span>
+      </div>
+      <div class="fcm-quote">
+        <b id="fcmPrice">—</b>
+        <span id="fcmChg"></span>
+        <span id="fcmDate"></span>
+      </div>
+      <div class="fcm-actions">
+        <a id="fcmF10" href="#" target="_blank" rel="noopener">F10</a>
+        <a id="fcmThs" href="#" target="_blank" rel="noopener">同花顺</a>
+        <button id="favChartReset" class="mini" type="button" title="复位视图">复位</button>
+        <button id="favChartClose" class="icon-btn" type="button" title="关闭 (Esc)" aria-label="关闭">
+          <span data-icon="x" data-icon-size="16"></span>
+        </button>
+      </div>
+    </div>
+    <div class="fcm-wrap" id="favChartBigWrap">
+      <canvas id="favChartBig"></canvas>
+      <div class="fav-chart-empty" id="favChartBigEmpty" hidden>暂无 K 线数据</div>
+    </div>
+    <div class="fcm-foot">
+      <span>日K · 近 250 个交易日</span>
+      <span id="fcmInfo"></span>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">© 2026 {{SITE_TITLE}} · 本地数据仅供研究参考，不构成投资建议{{ICP}}</footer>
+<div id="toast" class="toast"></div>
+<script src="/static/kline-chart.js"></script>
+<script src="/static/fav.js"></script>
+</body>
+</html>

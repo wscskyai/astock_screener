@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{SITE_TITLE}}</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/icons.js"></script>
+<script src="/static/theme.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">A</span>
+    <div>
+      <h1>{{SITE_TITLE}}</h1>
+      <p class="sub">股东户数 · 盈利质量 · 估值区间 · 本地数据 <span id="dataDate"></span></p>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <button class="pill pill-btn theme-btn" data-theme-btn title="切换主题">
+      <span class="i-moon" data-icon="moon" data-icon-size="16"></span>
+      <span class="i-sun" data-icon="sun" data-icon-size="16"></span>
+    </button>
+    <a class="pill pill-btn" href="/" title="指数首页">
+      <span data-icon="home" data-icon-size="14"></span>指数
+    </a>
+    <button id="screenToggle" class="pill pill-btn screen-toggle" aria-expanded="true" aria-controls="screenArea"
+            title="展开 / 收起筛选条件">
+      <span data-icon="search" data-icon-size="14"></span>选股筛选
+      <span class="toggle-caret" data-icon="chevronDown" data-icon-size="12"></span>
+    </button>
+    <a id="favBtn" class="pill pill-btn" href="/fav" hidden title="打开收藏页">
+      <span class="star-on" data-icon="star" data-icon-size="14" data-icon-filled="1"></span>收藏
+      <span class="pill-sub" id="favCount">0</span>
+    </a>
+    <div id="favPop" class="data-pop fav-pop" hidden>
+      <div class="dp-head">
+        <h2>我的收藏<span class="dp-sub" id="favSub"></span></h2>
+        <button id="favClose" class="icon-btn" title="关闭" data-icon="x" data-icon-size="16"></button>
+      </div>
+      <div class="fav-body" id="favList"></div>
+    </div>
+
+    <button id="userBtn" class="pill pill-btn"><span data-icon="user" data-icon-size="14"></span>登录 / 注册</button>
+
+    <button id="dbBtn" class="pill pill-btn" aria-haspopup="true" aria-expanded="false">
+      <i class="status-dot" id="dbDot"></i><span data-icon="database" data-icon-size="14"></span>本地库<span class="pill-sub" id="dbAdj">· 前复权</span>
+    </button>
+    <div id="dbPop" class="data-pop" hidden>
+      <div class="dp-head">
+        <h2>数据管理<span class="dp-sub" id="dpSub">本地库</span></h2>
+        <button id="dpClose" class="icon-btn" title="关闭" data-icon="x" data-icon-size="16"></button>
+      </div>
+      <div class="dp-body">
+        <div class="dp-hint" id="dpLoginHint" hidden>
+          <span data-icon="user" data-icon-size="14"></span>
+          未登录，数据同步已禁用
+          <button class="mini" id="dpLoginBtn">去登录</button>
+        </div>
+        <table class="dp-table">
+          <colgroup>
+            <col class="c-name"><col class="c-cov"><col class="c-date">
+            <col class="c-sync"><col class="c-act">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>数据</th>
+              <th>覆盖</th>
+              <th>最新</th>
+              <th>上次同步</th>
+              <th class="dp-act"></th>
+            </tr>
+          </thead>
+          <tbody id="dpRows">
+            <tr><td colspan="5" class="dp-empty">加载中…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="screen-collapse" id="screenCollapse">
+    <section class="screen-area" id="screenArea">
+      <div class="screen-form">
+        <div class="sf-panel sf-left">
+          <div class="sf-head">
+            <h2>筛选条件</h2>
+            <span class="meta">组合条件，改完点「筛选」</span>
+          </div>
+          <div class="cond-rows" id="condRows"></div>
+          <div class="cond-footer">
+            <button id="addCond" class="add-cond"><span data-icon="plus" data-icon-size="14"></span>添加条件</button>
+            <button id="runBtn" class="primary">筛选</button>
+            <button id="saveBtn" class="ghost"><span data-icon="bookmark" data-icon-size="14"></span>保存查询</button>
+            <button id="csvBtn" class="ghost" disabled>导出 CSV</button>
+          </div>
+        </div>
+
+        <aside class="sf-panel sf-right">
+          <div class="sf-head">
+            <h2>快捷查询</h2>
+            <span class="meta" id="presetMeta">点击载入</span>
+          </div>
+          <div class="preset-list" id="presetBar"></div>
+          <p class="sf-hint">点一条把保存的条件载入左侧，再点「筛选」运行；左侧改完可再「保存查询」成新组合。</p>
+        </aside>
+      </div>
+    </section>
+  </div>
+
+  <section class="content">
+    <div class="panel table-panel">
+      <div class="panel-head result-head">
+        <div class="rh-top">
+          <div class="result-tabs" id="resultTabs" role="tablist" aria-label="结果视图">
+            <button type="button" class="result-tab on" data-rtab="stocks" role="tab" aria-selected="true">个股列表</button>
+            <button type="button" class="result-tab" data-rtab="screen" role="tab" aria-selected="false">筛选结果</button>
+            <button type="button" class="result-tab" data-rtab="favorites" role="tab" aria-selected="false">我的收藏</button>
+          </div>
+          <span class="meta" id="resultMeta">加载中…</span>
+        </div>
+        <div class="stock-tools" id="stockTools">
+          <div class="sort-chips" id="stockSort">
+            <button type="button" class="sort-chip on" data-sort="pct" data-dir="desc">涨幅榜</button>
+            <button type="button" class="sort-chip" data-sort="pct" data-dir="asc">跌幅榜</button>
+            <button type="button" class="sort-chip" data-sort="volume" data-dir="desc">成交量</button>
+            <button type="button" class="sort-chip" data-sort="turnover" data-dir="desc">换手率</button>
+            <button type="button" class="sort-chip" data-sort="mktcap" data-dir="desc">市值</button>
+          </div>
+          <label class="ind-filter">行业
+            <select id="stockIndustry">
+              <option value="">全部行业</option>
+            </select>
+          </label>
+        </div>
+        <div class="result-conds" id="resultConds" hidden></div>
+      </div>
+      <div class="table-wrap" id="stockTableWrap">
+        <table id="stockTable">
+          <thead>
+            <tr>
+              <th class="fav-col" title="收藏">★</th>
+              <th data-stock-key="symbol">股票</th>
+              <th data-stock-key="close" class="num">现价</th>
+              <th data-stock-key="pct" class="num">涨跌幅</th>
+              <th data-stock-key="volume" class="num">成交量(万手)</th>
+              <th data-stock-key="turnover" class="num">换手率</th>
+              <th data-stock-key="float_mktcap" class="num">流通(亿)</th>
+              <th data-stock-key="mktcap" class="num">总市值(亿)</th>
+              <th data-stock-key="pe" class="num">PE</th>
+              <th data-stock-key="pb" class="num">PB</th>
+              <th data-stock-key="industry">行业</th>
+            </tr>
+          </thead>
+          <tbody id="stockTbody">
+            <tr class="empty"><td colspan="11">正在加载个股列表…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="table-wrap" id="favTableWrap" hidden>
+        <table id="favTable">
+          <thead>
+            <tr>
+              <th class="fav-col" title="收藏">★</th>
+              <th data-fav-key="symbol">股票</th>
+              <th data-fav-key="close" class="num">现价</th>
+              <th data-fav-key="pct" class="num">涨跌幅</th>
+              <th data-fav-key="volume" class="num">成交量(万手)</th>
+              <th data-fav-key="turnover" class="num">换手率</th>
+              <th data-fav-key="float_mktcap" class="num">流通(亿)</th>
+              <th data-fav-key="mktcap" class="num">总市值(亿)</th>
+              <th data-fav-key="pe" class="num">PE</th>
+              <th data-fav-key="pb" class="num">PB</th>
+              <th data-fav-key="industry">行业</th>
+              <th data-fav-key="group_name">分组</th>
+              <th data-fav-key="notes">跟进</th>
+            </tr>
+          </thead>
+          <tbody id="favTbody">
+            <tr class="empty"><td colspan="13">正在加载收藏…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="table-wrap" id="screenTableWrap" hidden>
+        <table id="resultTable">
+          <thead>
+            <tr>
+              <th class="fav-col" title="收藏">★</th>
+              <th data-key="symbol">股票</th>
+              <th data-key="drop_pct" class="num">户数降幅</th>
+              <th data-key="profit_yi" class="num">三季净利(亿)</th>
+              <th data-key="mktcap" class="num">总市值(亿)</th>
+          <th data-key="float_mktcap" class="num" title="流通市值">流通(亿)</th>
+              <th data-key="pe" class="num">PE</th>
+              <th data-key="pb" class="num">PB</th>
+              <th data-key="dv" class="num">股息率</th>
+              <th data-key="roe_annual" class="num">ROE(年化)</th>
+              <th data-key="yoy" class="num">净利同比</th>
+              <th data-key="rev_yoy" class="num">营收同比</th>
+              <th data-key="gross_margin" class="num">毛利率</th>
+              <th data-key="period">报告期</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr class="empty"><td colspan="14">设置条件后点击「筛选」</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="pager">
+        <div class="pager-left">
+          <span id="pageInfo">—</span>
+          <select id="pageSize">
+            <option value="20">20 条/页</option>
+            <option value="50" selected>50 条/页</option>
+            <option value="100">100 条/页</option>
+            <option value="0">全部</option>
+          </select>
+        </div>
+        <div class="pager-right">
+          <button id="firstBtn" class="ghost small" disabled>«</button>
+          <button id="prevBtn" class="ghost small" disabled>上一页</button>
+          <span id="pageNum" class="page-num">1 / 1</span>
+          <button id="nextBtn" class="ghost small" disabled>下一页</button>
+          <button id="lastBtn" class="ghost small" disabled>»</button>
+        </div>
+      </div>
+    </div>
+
+    <aside class="panel detail-panel" id="detailPanel">
+      <div class="panel-head detail-head">
+        <div class="dh-top">
+          <h2 id="detailTitle">个股走势</h2>
+          <div class="stock-search">
+            <div class="ss-field">
+              <input id="stockSearch" type="text" autocomplete="off" spellcheck="false"
+                     placeholder="代码 / 拼音">
+              <button id="stockClear" class="ss-clear" type="button" hidden title="清空">
+                <span data-icon="x" data-icon-size="12"></span>
+              </button>
+            </div>
+            <button id="stockSearchGo" class="ss-go" type="button" title="查询（Enter）" aria-label="查询">
+              <span data-icon="search" data-icon-size="14"></span>
+            </button>
+            <div id="stockSuggest" class="kw-list" hidden></div>
+          </div>
+          <button id="chartZoom" class="icon-btn" title="放大 K 线" hidden>
+            <span data-icon="maximize" data-icon-size="15"></span>
+          </button>
+        </div>
+        <span class="meta" id="detailMeta">输入代码 / 拼音，或点击左侧任意一行</span>
+      </div>
+      <div class="chart-wrap" id="chartWrap" title="点击放大">
+        <canvas id="chart" width="680" height="360"></canvas>
+      </div>
+      <div class="legend">
+        <span class="dot up"></span>涨
+        <span class="dot down"></span>跌
+        <span class="sep"></span>
+        <a id="thsLink" class="ths" href="#" target="_blank" rel="noopener" style="display:none">同花顺行情 ↗</a>
+        <a id="f10Link" class="ths" href="#" target="_blank" rel="noopener" style="display:none">简况F10 ↗</a>
+      </div>
+    </aside>
+  </section>
+</main>
+
+<div id="chartModal" class="chart-modal" hidden>
+  <div class="cm-card">
+    <div class="cm-head">
+      <div class="cm-title">
+        <span id="cmName">—</span>
+        <span class="cm-meta" id="cmMeta"></span>
+      </div>
+      <div class="cm-tools">
+        <div class="cm-nav">
+          <button id="cmPrev" class="mini cm-step" title="上一只（←）">
+            <span data-icon="chevronLeft" data-icon-size="13"></span>上一只
+          </button>
+          <span class="cm-counter" id="cmCounter">—</span>
+          <button id="cmNext" class="mini cm-step" title="下一只（→）">
+            下一只<span data-icon="chevronRight" data-icon-size="13"></span>
+          </button>
+        </div>
+        <a class="cm-link" id="cmThs" href="#" target="_blank" rel="noopener">
+          <span data-icon="external" data-icon-size="13"></span>同花顺行情
+        </a>
+        <a class="cm-link" id="cmF10" href="#" target="_blank" rel="noopener">
+          <span data-icon="fileText" data-icon-size="13"></span>简况 F10
+        </a>
+        <span class="cm-hint" id="cmHint">滚轮缩放 · 拖动平移 · 双击复位</span>
+        <button id="cmSync" class="mini" title="同步这只票的最新 K 线">
+          <span data-icon="refresh" data-icon-size="13"></span>同步
+        </button>
+        <button id="cmReset" class="mini" title="复位视图">复位</button>
+        <button id="cmFav" class="mini cm-favbtn" title="收藏（可选分类、写笔记）">
+          <span data-icon="star" data-icon-size="14"></span><span id="cmFavText">收藏</span>
+        </button>
+        <button id="cmClose" class="icon-btn" title="关闭 (Esc)">
+          <span data-icon="x" data-icon-size="16"></span>
+        </button>
+      </div>
+    </div>
+    <div class="cm-favpop" id="cmFavPop" hidden>
+      <div class="cfp-head">
+        <span class="cfp-star" data-icon="star" data-icon-size="15"></span>
+        <div class="cfp-titles">
+          <b id="cfpName">—</b>
+          <small id="cfpCode">—</small>
+        </div>
+        <button type="button" class="cfp-x" id="cfpX" title="关闭">
+          <span data-icon="x" data-icon-size="14"></span>
+        </button>
+      </div>
+      <div class="cfp-label">放进哪个分类</div>
+      <div class="cfp-chips" id="cfpChips"></div>
+      <textarea id="cfpNote" rows="3" maxlength="300"
+        placeholder="记一笔：为什么关注、打算什么价位买、风险点是什么"></textarea>
+      <div class="cfp-meta"><span id="cfpCount">0</span>/300 · Ctrl+Enter 保存</div>
+      <div class="cfp-foot">
+        <button type="button" id="cfpRemove" class="cfp-link danger" hidden>取消收藏</button>
+        <span class="cfp-spacer"></span>
+        <button type="button" id="cfpCancel" class="mini">取消</button>
+        <button type="button" id="cfpSave" class="mini primary">添加收藏</button>
+      </div>
+    </div>
+    <div class="cm-body">
+      <canvas id="chartBig"></canvas>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">© 2026 {{SITE_TITLE}} · 本地数据仅供研究参考，不构成投资建议{{ICP}}</footer>
+<div id="toast" class="toast"></div>
+
+<div id="authModal" class="modal" hidden>
+  <div class="modal-card">
+    <h3 id="authTitle">登录</h3>
+    <p class="modal-sub" id="authTip">登录后可收藏股票并记录笔记</p>
+    <label class="modal-field">
+      <span>用户名</span>
+      <input id="authUser" type="text" autocomplete="username" maxlength="20">
+    </label>
+    <label class="modal-field">
+      <span>密码</span>
+      <input id="authPass" type="password" autocomplete="current-password" maxlength="64">
+    </label>
+    <label class="modal-field" id="authPass2Wrap" hidden>
+      <span>确认密码</span>
+      <input id="authPass2" type="password" maxlength="64">
+    </label>
+    <div class="modal-err" id="authErr"></div>
+    <div class="modal-actions">
+      <button id="authSwitch" class="ghost">注册新账号</button>
+      <button id="authSubmit" class="primary">登录</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/kline-chart.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
