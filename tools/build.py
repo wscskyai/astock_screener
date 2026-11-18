@@ -295,6 +295,33 @@ def cmd_mktcap(args) -> int:
 
 
 # ------------------------------------------------------------------ 状态
+def cmd_checkpoint(args) -> int:
+    """把 WAL 合并回主库；-shm 是平台相关的，跨系统切换前删掉可避免 disk I/O error。"""
+    path = db.DB_PATH
+    for suf in ("-wal", "-shm"):
+        f = path + suf
+        if os.path.exists(f):
+            print(f"  {suf}: {os.path.getsize(f)/1e6:.1f} MB")
+    conn = db.connect()
+    try:
+        print("  journal:", conn.execute("PRAGMA journal_mode").fetchone()[0])
+        busy, log, done = conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+        print(f"  checkpoint: busy={busy} log={log} checkpointed={done}")
+    finally:
+        conn.close()
+    if args.drop_shm:
+        f = path + "-shm"
+        if os.path.exists(f):
+            try:
+                os.remove(f)
+                print("  已删除 -shm")
+            except OSError as e:
+                print(f"  删不掉 -shm（{e.strerror}）：可能有同步/杀毒软件正占用，"
+                      f"停掉它再试，或忽略——主库本身不受影响")
+    print(f"  主库 {os.path.getsize(path)/1e6:.0f} MB")
+    return 0
+
+
 def cmd_status(args) -> int:
     conn = db.connect()
     st = db.stats(conn)
@@ -400,6 +427,11 @@ def main(argv=None) -> int:
     p.add_argument("--workers", type=int, default=6)
     p.add_argument("--fundamentals", action="store_true")
     p.set_defaults(fn=cmd_update)
+
+    p = sub.add_parser("checkpoint")
+    p.add_argument("--drop-shm", action="store_true",
+                   help="顺手删掉 -shm（在 Windows 与 Docker 之间切换时用）")
+    p.set_defaults(fn=cmd_checkpoint)
 
     p = sub.add_parser("status")
     p.set_defaults(fn=cmd_status)

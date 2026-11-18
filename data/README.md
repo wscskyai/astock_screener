@@ -15,3 +15,5 @@
 - **`astock.db` 里有用户密码哈希和会话 token，不要提交、不要外传**。
 - 因为库不在 git 里，请单独做备份（NAS 快照 / `rsync` / `sqlite3 .backup`）。
 - Docker 部署时这个目录挂载到容器的 `/app/data`，必须是本地存储，不要挂 SMB/NFS。
+- 这个目录默认被同步客户端（OneDrive / 坚果云 / fnOS sync）盯着的话，SQLite 的 `-shm` 会被占用，
+  容器里会报 `disk I/O error`；建议把库挪到本地目录，用 `ASTOCK_DB` / `ASTOCK_DATA_DIR` 指过去。

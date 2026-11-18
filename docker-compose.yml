@@ -1,3 +1,7 @@
+# 数据目录默认用项目下的 ./data；可以用环境变量或 .env 指到别的盘：
+#   ASTOCK_DATA_DIR=D:/astock_data
+# 注意：不要放在同步盘（OneDrive/坚果云/fn-sync 等）里，SQLite 会被锁住或写坏。
+
 services:
   astock:
     build: .
@@ -9,10 +13,14 @@ services:
     environment:
       TZ: Asia/Shanghai
       ASTOCK_DB: /app/data/astock.db
+      # 容器里的数据目录是「主机目录挂进来」的（Windows/macOS 的 Docker Desktop 是 9p/virtiofs，
+      # NAS 上如果是网络盘也一样）：WAL + mmap 在这类文件系统上会报 disk I/O error。
+      # 置 1 = 改用 rollback journal + 关 mmap。Linux 本地 ext4/btrfs 想追性能可以删掉这行。
+      ASTOCK_SQLITE_SAFE: "1"
     volumes:
       # 数据库与同步数据都放这里：必须用「本地存储卷/共享文件夹」，
       # 不要挂 SMB / NFS 网络盘（SQLite 的 WAL 在网络文件系统上不可靠）
-      - ./data:/app/data
+      - ${ASTOCK_DATA_DIR:-./data}:/app/data
     # 内存实测约 1.4 GB（预热完成后），给个软限制方便 NAS 上看
     mem_limit: 3g
     healthcheck:

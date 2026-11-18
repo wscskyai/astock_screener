@@ -295,13 +295,56 @@ CREATE INDEX IF NOT EXISTS idx_val_daily_date ON valuation_daily(date);
 
 
 def connect(path: str = DB_PATH, create: bool = True) -> sqlite3.Connection:
+    """打开数据库；遇到跨系统残留的 -shm/-wal 时自愈一次。
+
+    环境变量 ASTOCK_SQLITE_SAFE=1 时用「安全模式」：不用 WAL、不开 mmap，
+    适合 Docker / NAS 的 bind mount（9p、virtiofs、NFS 上 WAL+mmap 会报 disk I/O error）。
+    """
+    try:
+        return _connect_once(path, create)
+    except sqlite3.OperationalError as e:
+        msg = str(e).lower()
+        shm = path + "-shm"
+        if any(k in msg for k in ("disk i/o", "malformed", "unable to open")) and os.path.exists(shm):
+            # 典型场景：Windows 上跑过服务端，留下平台相关的 -shm；容器里 SQLite 打不开。
+            # 挪走 -shm（不删 -wal，数据还在），SQLite 会自己从 WAL 重建索引文件。
+            backup = f"{shm}.stale-{int(time.time())}"
+            try:
+                os.replace(shm, backup)
+            except OSError:
+                raise e
+            return _connect_once(path, create)
+        raise
+
+
+def _connect_once(path: str, create: bool) -> sqlite3.Connection:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     conn = sqlite3.connect(path, timeout=30)      # 写锁最多等 30 秒，别直接报 locked
-    conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=30000")
+
+    safe = os.environ.get("ASTOCK_SQLITE_SAFE", "").strip().lower() in ("1", "true", "yes")
+    if not safe:
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+        except sqlite3.OperationalError:
+            safe = True                           # 这个文件系统不支持 WAL
+    if safe:
+        try:
+            conn.execute("PRAGMA journal_mode=DELETE")
+        except sqlite3.OperationalError:
+            pass
+
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute("PRAGMA temp_store=MEMORY")
-    conn.execute("PRAGMA mmap_size=268435456")   # 256MB 内存映射，读大表更快
+    if safe:
+        conn.execute("PRAGMA mmap_size=0")
+    else:
+        try:
+            conn.execute("PRAGMA mmap_size=268435456")   # 256MB 内存映射，读大表更快
+            # 真正读一页：mmap 在 9p/virtiofs 上会在这里才暴露成 disk I/O error
+            conn.execute("SELECT COUNT(1) FROM sqlite_master").fetchone()
+        except sqlite3.OperationalError:
+            conn.execute("PRAGMA mmap_size=0")
     conn.execute("PRAGMA cache_size=-64000")     # 64MB page cache
     if create:
         conn.executescript(SCHEMA)

@@ -128,6 +128,45 @@ docker compose run --rm astock python tools/build.py update
 
 也可以直接在网页「本地库」面板里点同步（需要登录），或把 `sync_time` 设成交易日晚间（如 18:30）让容器自动同步。
 
+### ⚠️ 数据库不要放在同步盘里（disk I/O error 的根源）
+
+如果启动后日志出现：
+
+```
+数据库读取失败：disk I/O error
+!! GET /api/me -> OperationalError: disk I/O error
+```
+
+八成是 **`data/astock.db` 放在了同步盘 / 网盘目录**（OneDrive、坚果云、fnOS 同步客户端等），
+同步客户端会一直占用 SQLite 的 `-shm` 共享内存文件；这个文件是**平台相关**的，
+Linux 容器打开 Windows 生成的 `-shm` 就会直接报 `disk I/O error`（`dd` 读文件却正常）。
+
+处理办法：**把数据库挪到本地普通目录**（不要同步），用环境变量指过去：
+
+```bash
+# docker-compose 同目录建 .env（已被 .gitignore 忽略）
+ASTOCK_DATA_DIR=D:/astock_data
+```
+
+```bash
+# 主机直接跑时
+set ASTOCK_DB=D:\astock_data\astock.db
+python web/app.py --port 5001
+```
+
+另外两条相关命令：
+
+```bash
+python tools/build.py checkpoint --drop-shm   # 合并 WAL、删掉 -shm（切换主机/容器前跑一次）
+```
+
+代码里也做了自愈：`db.connect()` 遇到打不开且存在 `-shm` 时，会自动把它改名挪开再重试，
+并从 `-wal` 重建（数据不丢）。容器默认还开了 `ASTOCK_SQLITE_SAFE=1`（不用 WAL、不用 mmap）。
+
+> 同一时间只让**一个**进程打开数据库：主机上的服务和容器不要同时开着同一个库。
+> 主机端口被占用时 `web/app.py` 会自动顺延到 5002，容易变成「两个实例都在跑」，
+> 建议用 `docker compose down` 或杀掉本机 python 后再启动容器。
+
 ### 注意事项
 
 | 事项 | 说明 |
@@ -138,6 +177,7 @@ docker compose run --rm astock python tools/build.py update
 | **时区** | 已设 `TZ=Asia/Shanghai`，分时/交易时段判断依赖它 |
 | **内存** | 实测常驻约 1.4 GB（预热完成后），compose 里给了 3 GB 上限；NAS 建议留 ≥2 GB 可用 |
 | **架构** | `python:3.12-slim` + pandas/numpy 在 x86_64 和 arm64 都有 wheel，群晖/威联通两种机型都能跑 |
+| **数据目录** | 默认 `./data`，可用 `.env` 的 `ASTOCK_DATA_DIR` 指到别的盘；**不要放同步盘/网盘**（会导致 disk I/O error，见上） |
 | **公网访问** | 建议走 NAS 自带的反向代理 + HTTPS，别直接把 5001 暴露到公网；本项目只有密码登录（PBKDF2 加盐），没有二次验证 |
 
 ## 启动与性能
