@@ -5,17 +5,21 @@
 最近 40 天的成交量就会被写成 100 倍；而且新浪是不复权价。这个脚本只认 txp / em
 两个前复权源，避免再引入价格口径问题。
 
-    python repair_bars.py          # 默认最近 90 个交易日
-    python repair_bars.py 120
+    python tools/repair_bars.py          # 默认最近 90 个交易日
+    python tools/repair_bars.py 120
 """
 
+import os
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-sys.path.insert(0, r"D:\工作\A股分析\astock_screener")
-import db  # noqa: E402
-import sources_cn as src  # noqa: E402
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+from astock import db
+from astock import sources_cn as src
 
 WORKERS = 6
 

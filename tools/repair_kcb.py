@@ -5,16 +5,20 @@
 全部放大 100 倍（成交额中位数算出来 123 亿/天）。sources_cn 已修正单位，
 这里把库里已污染的整段历史重写一遍。
 
-    python repair_kcb.py
+    python tools/repair_kcb.py
 """
 
+import os
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-sys.path.insert(0, r"D:\工作\A股分析\astock_screener")
-import db  # noqa: E402
-import sources_cn as src  # noqa: E402
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+from astock import db
+from astock import sources_cn as src
 
 WORKERS = 6
 START = "2021-01-01"

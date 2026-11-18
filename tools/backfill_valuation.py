@@ -1,15 +1,19 @@
 # -*- coding: utf-8 -*-
 """回补历史估值序列（用于 PE/PB 分位）。多线程按日期并行，跳过已回补的日期。
 
-    python backfill_valuation.py 1200
+    python tools/backfill_valuation.py 1200
 """
+import os
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-sys.path.insert(0, r"D:\工作\A股分析\astock_screener")
-import db  # noqa: E402
-import sources_cn as src  # noqa: E402
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+from astock import db
+from astock import sources_cn as src
 
 WORKERS = 4
 

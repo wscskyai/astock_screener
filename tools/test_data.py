@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""数据层自检：python test_data.py
+"""数据层自检：python tools/test_data.py
 
 校验表结构、行数、OHLC 合法性、股东户数连续性、财务单季折算。
 建库完成后跑一遍，可放进每日任务里做健康检查。
@@ -7,12 +7,18 @@
 
 from __future__ import annotations
 
+import os
+import sys
 import unittest
 
 import pandas as pd
 
-import db
-import query
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+from astock import db
+from astock import query
 
 
 class TestDataLayer(unittest.TestCase):

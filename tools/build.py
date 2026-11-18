@@ -1,17 +1,18 @@
 # -*- coding: utf-8 -*-
 """A 股前置数据构建：首次全量拉取入库，之后每日增量。
 
-    python build.py init                  # 全量建库（约 10 分钟）
-    python build.py init --limit 100      # 小样本试跑
-    python build.py update                # 每日增量（日线）
-    python build.py update --fundamentals # 每周增量（含财务/股东户数）
-    python build.py status                # 库状态
-    python build.py validate              # 数据体检
+    python tools/build.py init                  # 全量建库（约 10 分钟）
+    python tools/build.py init --limit 100      # 小样本试跑
+    python tools/build.py update                # 每日增量（日线）
+    python tools/build.py update --fundamentals # 每周增量（含财务/股东户数）
+    python tools/build.py status                # 库状态
+    python tools/build.py validate              # 数据体检
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -19,8 +20,12 @@ from datetime import datetime
 
 import pandas as pd
 
-import db
-import sources_cn as src
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+from astock import db
+from astock import sources_cn as src
 
 BARS_COLS = ["symbol", "date", "open", "high", "low", "close", "volume"]
 HOLDER_COLS = ["symbol", "end_date", "announce_date", "holder_num", "chg_pct", "avg_mktcap"]

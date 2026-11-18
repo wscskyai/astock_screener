@@ -9,14 +9,18 @@ from __future__ import annotations
 
 import bisect
 import sqlite3
+import os
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 
-sys.path.insert(0, r"D:\工作\A股分析\astock_screener")
-import db  # noqa: E402
-import sources_cn as src  # noqa: E402
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+from astock import db
+from astock import sources_cn as src
 
 
 def build_events(conn: sqlite3.Connection, since: str) -> dict[str, tuple[list, list]]:

@@ -18,7 +18,7 @@ import time
 import numpy as np
 import pandas as pd
 
-import query
+from . import query
 
 # ---------------------------------------------------------------- 参数
 BASE = {
@@ -523,7 +523,7 @@ def build_all(conn: sqlite3.Connection, progress=None) -> dict:
         out.astype(object).where(pd.notna(out), None).values.tolist(),
     )
     conn.commit()
-    import db as _db
+    from . import db as _db
     _db.set_meta(conn, "sync_patterns_at", time.strftime("%Y-%m-%d %H:%M:%S"))
     conn.commit()
     stats = {
@@ -930,7 +930,7 @@ def ensure_variants(conn, conds, progress=None) -> list[str]:
             progress(f"计算形态：{col}")
         hit = _computing(conn, kind, bars, p, d, lp)
         _write_variant(conn, day, kind, col, hit)
-        import db as _db
+        from . import db as _db
         _db.set_meta(conn, mark, "1")
         conn.commit()
         built.append(col)

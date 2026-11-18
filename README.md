@@ -1,3 +1,47 @@
+# 目录结构
+
+```
+astock_screener/
+├── astock/                 # 核心包：数据层 + 指标 + 形态 + 同步
+│   ├── __init__.py
+│   ├── db.py               # 建表 / 迁移 / 连接 / 统计
+│   ├── query.py            # 常用查询（含命令行：python -m astock.query）
+│   ├── metrics.py          # 573 列宽表、筛选条件求值
+│   ├── patterns.py         # 做小做底 / 旗形 / 箱体 / W 底 / 低位放量
+│   ├── sync.py             # 日线、估值、股东户数、财务同步
+│   ├── sources_cn.py       # 东财 / 腾讯 / 新浪接口（含指数、单只补齐）
+│   ├── users.py            # 用户、会话、收藏、笔记
+│   └── siteconfig.py       # 站点配置（标题 / 备案号 / 统计代码）
+├── tools/                  # 命令行脚本
+│   ├── build.py            # 建库 / 增量 / 状态 / 体检
+│   ├── `tools/build_patterns.py`   # 全市场形态预计算
+│   ├── `tools/build_pinyin.py`     # 拼音索引
+│   ├── repair_*.py         # 修日线、科创板、指定名单
+│   ├── backfill_*.py       # 回补股息率 / 估值序列
+│   └── test_data.py        # 数据层自检（13 个 unittest）
+├── web/                    # 站点
+│   ├── app.py              # HTTP 服务（入口）
+│   ├── check_ui.py         # 接口自检
+│   ├── static/  templates/ # 前端资源
+│   └── 启动.bat            # Windows 一键启动
+├── docs/BENCHMARK.md       # SQLite vs PostgreSQL 实测
+├── data/                   # 数据库（不入 git，见 data/README.md）
+├── Dockerfile
+├── docker-compose.yml
+├── requirements.txt
+└── README.md
+```
+
+常用命令：
+
+```bash
+python web/app.py --port 5001            # 启动站点（开发）
+python tools/build.py status             # 库状态
+python tools/build.py update             # 每日增量
+python tools/test_data.py                # 数据自检
+python -m astock.query holders --min-drop 5   # 命令行查询
+```
+
 # 页面结构
 
 | 路径 | 页面 | 说明 |
@@ -15,6 +59,9 @@
 
 ```
 astock_screener/
+├── astock/               ← 核心包（数据层 / 指标 / 形态）
+├── tools/                ← 命令行脚本
+├── web/                  ← 站点
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
@@ -55,10 +102,10 @@ docker compose logs -f            # 看启动日志
 
 ```bash
 # 全量拉一次日线/财务/股东户数（20~40 分钟，取决于网络）
-docker compose run --rm astock python build.py init
+docker compose run --rm astock python tools/build.py init
 
 # 之后日常增量
-docker compose run --rm astock python build.py update
+docker compose run --rm astock python tools/build.py update
 ```
 
 也可以直接在网页「本地库」面板里点同步（需要登录），或把 `sync_time` 设成交易日晚间（如 18:30）让容器自动同步。
@@ -289,21 +336,21 @@ docker compose run --rm astock python build.py update
 ## 4. 命令
 
 ```bash
-python build.py init                  # 全量建库（首次，约 15~20 分钟）
-python build.py init --limit 100      # 小样本试跑
-python build.py update                # 每日增量：只补最近 40 天日线
-python build.py update --fundamentals # 每周增量：含股东户数/财务
-python build.py status                # 库状态
-python build.py validate              # 数据体检
+python tools/build.py init                  # 全量建库（首次，约 15~20 分钟）
+python tools/build.py init --limit 100      # 小样本试跑
+python tools/build.py update                # 每日增量：只补最近 40 天日线
+python tools/build.py update --fundamentals # 每周增量：含股东户数/财务
+python tools/build.py status                # 库状态
+python tools/build.py validate              # 数据体检
 ```
 
 查询示例：
 
 ```bash
-python query.py holders --min-drop 5              # 股东户数三季连降、累计降幅 ≥5%
-python query.py profit --min 10000000             # 近三季单季净利之和 ≥1000 万
-python query.py combo --min-drop 8 --min-years 5 --mktcap 50 200 --exclude-st
-python query.py bars 600000                       # 看单只票日线
+python -m astock.query holders --min-drop 5              # 股东户数三季连降、累计降幅 ≥5%
+python -m astock.query profit --min 10000000             # 近三季单季净利之和 ≥1000 万
+python -m astock.query combo --min-drop 8 --min-years 5 --mktcap 50 200 --exclude-st
+python -m astock.query bars 600000                       # 看单只票日线
 ```
 
 三个筛选条件（`holders` / `profit` / `combo` 均支持）：
@@ -320,7 +367,7 @@ python query.py bars 600000                       # 看单只票日线
 
 ```bash
 # 近三季股东户数减少 20% + 市值 50~100 亿 + 近三季净利 ≥ 0.1 亿
-python query.py combo --min-drop 20 --profit-yi 0.1 --mktcap 50 100 \
+python -m astock.query combo --min-drop 20 --profit-yi 0.1 --mktcap 50 100 \
                        --exclude-st --min-years 5
 ```
 
@@ -411,8 +458,8 @@ PE / PB / 股息率三项都有历史序列，因此都能算**分位**：
 上市日期与市值需要先补齐（各约 1 分钟 / 20 秒，只补空缺/刷新快照）：
 
 ```bash
-python build.py backfill     # 上市日期（东财 F10）
-python build.py mktcap       # 总市值快照（腾讯批量，5578 只 17 秒）
+python tools/build.py backfill     # 上市日期（东财 F10）
+python tools/build.py mktcap       # 总市值快照（腾讯批量，5578 只 17 秒）
 ```
 
 ## 5. 数据库优化
@@ -494,7 +541,7 @@ python web/app.py --port 5001     # 或双击 web/启动.bat
   **拼音首字母**（`cyhb`）。`↑` `↓` 选择、`Enter` 确认并直接打开该股 K 线、
   `Esc` 收起下拉（再按一次清空）。框右侧 `✕` 一键清空并恢复筛选；
   关键字同样会作用到筛选接口（`?keyword=cyhb` → 只留创业环保）。
-  拼音索引由 `build_pinyin.py` 生成（约 100 行，无需第三方库，Unihan 读音表，
+  拼音索引由 `tools/build_pinyin.py` 生成（约 100 行，无需第三方库，Unihan 读音表，
   多音字如「银行/出行」会同时收录 `payh` 和 `payx`）。
 - **图标**：一套 Feather / Lucide 风格线性图标（`static/icons.js`，24 格 viewBox、
   2px 描边），用于主题切换（☾/☀）、外链、复制、星标、删除、本地库、用户、保存、返回。
@@ -572,7 +619,7 @@ python web/app.py --port 5001     # 或双击 web/启动.bat
 缓存按**交易日失效**：新 K 线进来（`bars` 最大日期变化）后标记对不上，会自动重算。
 面板「形态信号」显示 `已算 N/58 组合`，点「同步」= 清掉当天缓存强制重算。
 
-`build_patterns.py` 仍保留，用于手动预热全部组合（约 **24 秒**），结果落 `pattern_signal` 表，
+`tools/build_patterns.py` 仍保留，用于手动预热全部组合（约 **24 秒**），结果落 `pattern_signal` 表，
 宽表查询时只做一次 join，界面上不增加等待。日线更新后在「本地库」里点
 **形态信号 → 同步**即可刷新（也注册进了 `sync.py` 的 `patterns`）。
 
@@ -838,16 +885,16 @@ K 线图会自动标出形态：旗杆位置画虚线 + 旗面区间浅橙色阴
 2. `_txp_bars()` / `_tx_bars()`：科创板（688/689）的 `volume / 100` 换算成手
 3. `fetch_bars_recent()`（每日增量）**只允许前复权源**（txp / em / tx），
    拿不到就跳过这只、等下一轮再补，绝不把新浪的不复权数据写进库
-4. `repair_bars.py` 用腾讯重拉最近 90 天覆盖，修好 49.9 万行（3.6 分钟）
-5. `repair_kcb.py` 重建 618 只科创板全历史（71.3 万行，1.1 分钟）
+4. `tools/repair_bars.py` 用腾讯重拉最近 90 天覆盖，修好 49.9 万行（3.6 分钟）
+5. `tools/repair_kcb.py` 重建 618 只科创板全历史（71.3 万行，1.1 分钟）
 6. `repair_symbols.py <名单>` 重建「老数据不复权 + 股单位」的遗留股票（这次 30 只）
 7. `build.py validate` 新增**成交量量级体检**：相邻交易日全市场中位倍数超过 5 倍就告警
 
 ```
-python build.py validate                  # 体检，含成交量单位检查
-python repair_bars.py 90                  # 最近 90 天重拉覆盖
-python repair_kcb.py                      # 科创板全历史重建
-python repair_symbols.py 名单.txt          # 按名单重建
+python tools/build.py validate                  # 体检，含成交量单位检查
+python tools/repair_bars.py 90                  # 最近 90 天重拉覆盖
+python tools/repair_kcb.py                      # 科创板全历史重建
+python tools/repair_symbols.py 名单.txt          # 按名单重建
 ```
 
 修复后 603679：09-30 = 6.14 万手、10-08 = **5.77 万手**，与行情软件一致；
@@ -951,5 +998,6 @@ ROE 取**最新报告期加权 ROE 年化**，因为 A 股 ROE 是年内累计�
 2. 筹码因子：读 `holders`，算连续 N 期下降；
 3. 财务因子：读 `financials`，先折算单季再求和；
 4. 规则引擎：把三类因子按 YAML 组合成候选清单。
-#   a s t o c k _ s c r e e n e r  
+#   a s t o c k _ s c r e e n e r 
+ 
  

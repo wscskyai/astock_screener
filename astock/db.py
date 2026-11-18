@@ -15,7 +15,7 @@ from __future__ import annotations
 import os
 import sqlite3
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 项目根目录
 # 容器里用环境变量指定库位置（默认仍是项目下的 data/astock.db）
 DB_PATH = os.environ.get("ASTOCK_DB") or os.path.join(BASE_DIR, "data", "astock.db")
 

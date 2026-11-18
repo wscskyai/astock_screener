@@ -19,7 +19,7 @@ import time
 import numpy as np
 import pandas as pd
 
-import query
+from . import query
 
 # ---------------------------------------------------------------- 字段登记
 PERIODS = [

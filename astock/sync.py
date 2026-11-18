@@ -10,9 +10,8 @@ import sqlite3
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 
-import db
-import patterns
-import sources_cn as src
+from . import db, patterns
+from . import sources_cn as src
 
 BARS_COLS = ["symbol", "date", "open", "high", "low", "close", "volume"]
 HOLDER_COLS = ["symbol", "end_date", "announce_date", "holder_num", "chg_pct", "avg_mktcap"]

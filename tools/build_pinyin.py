@@ -13,8 +13,11 @@ import time
 import unicodedata
 import urllib.request
 
-sys.path.insert(0, r"D:\工作\A股分析\astock_screener")
-import db  # noqa: E402
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+from astock import db
 
 SRC_URL = "https://raw.githubusercontent.com/mozillazg/pinyin-data/master/pinyin.txt"
 SRC_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "pinyin_src.txt")

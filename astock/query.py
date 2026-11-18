@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """基于本地库的选股查询（示例：股东户数连降 + 近三季净利润）。
 
-    python query.py holders --min-drop 5          # 股东户数三季连降
-    python query.py profit --min 10000000         # 近三季单季净利之和 > 1000 万
-    python query.py combo --min-drop 5 --min-profit 10000000
-    python query.py bars 600000                   # 看单只票的日线
+    python -m astock.query holders --min-drop 5          # 股东户数三季连降
+    python -m astock.query profit --min 10000000         # 近三季单季净利之和 > 1000 万
+    python -m astock.query combo --min-drop 5 --min-profit 10000000
+    python -m astock.query bars 600000                   # 看单只票的日线
 
 所有查询只读本地 astock.db，不联网。
 """
@@ -16,7 +16,7 @@ import sqlite3
 
 import pandas as pd
 
-import db
+from . import db
 
 pd.set_option("display.unicode.east_asian_width", True)
 pd.set_option("display.width", 200)

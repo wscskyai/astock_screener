@@ -31,14 +31,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-import db      # noqa: E402
-import metrics
-import patterns  # noqa: E402
-import query   # noqa: E402
-import siteconfig  # noqa: E402
-import sources_cn as src  # noqa: E402
-import sync    # noqa: E402
-import users   # noqa: E402
+from astock import db, metrics, patterns, query   # noqa: E402
+from astock import siteconfig, sync, users        # noqa: E402
+from astock import sources_cn as src              # noqa: E402
 
 STATIC = os.path.join(HERE, "static")
 TEMPLATES = os.path.join(HERE, "templates")

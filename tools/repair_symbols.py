@@ -3,15 +3,19 @@
 
 用于那些历史遗留下来、混着「不复权价 + 股单位」的股票。
 
-    python repair_symbols.py D:\\tmp\\suspect_symbols.txt
+    python tools/repair_symbols.py D:\\tmp\\suspect_symbols.txt
 """
 
+import os
 import sys
 import time
 
-sys.path.insert(0, r"D:\工作\A股分析\astock_screener")
-import db  # noqa: E402
-import sources_cn as src  # noqa: E402
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+from astock import db
+from astock import sources_cn as src
 
 START = "2021-01-01"
 
