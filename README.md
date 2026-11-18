@@ -1,4 +1,18 @@
-# 目录结构
+# A 股选股系统（astock_screener）
+
+本地化 A 股选股工具：把日线、财务、股东户数、估值全部落到本地 SQLite，
+盘后增量同步，查询与形态计算全在本地跑；自带 Web 界面（指数看板 / 选股筛选 / 收藏跟踪）。
+
+- **数据**：5,578 只股票、713 万行前复权日线、估值分位、股东户数与财报（带公告日，可做 point-in-time）
+- **形态**：做小做底、低位放量、旗形整理 / 突破、箱体、W 底、底部启动
+- **界面**：指数分时与日/周/月 K、30 个可筛指标、收藏分组与跟进笔记、个股 K 线弹窗
+- **部署**：单机 `python web/app.py`，或 Docker / NAS（见下方章节）
+
+**章节导航**：[目录结构](#目录结构) · [页面结构](#页面结构) ·
+[Docker / NAS 部署](#docker--nas-部署) · [启动与性能](#启动与性能) ·
+[数据层说明](#数据层说明) · [Web 界面](#6-web-界面)
+
+## 目录结构
 
 ```
 astock_screener/
@@ -14,8 +28,8 @@ astock_screener/
 │   └── siteconfig.py       # 站点配置（标题 / 备案号 / 统计代码）
 ├── tools/                  # 命令行脚本
 │   ├── build.py            # 建库 / 增量 / 状态 / 体检
-│   ├── `tools/build_patterns.py`   # 全市场形态预计算
-│   ├── `tools/build_pinyin.py`     # 拼音索引
+│   ├── build_patterns.py   # 全市场形态预计算
+│   ├── build_pinyin.py     # 拼音索引
 │   ├── repair_*.py         # 修日线、科创板、指定名单
 │   ├── backfill_*.py       # 回补股息率 / 估值序列
 │   └── test_data.py        # 数据层自检（13 个 unittest）
@@ -42,7 +56,7 @@ python tools/test_data.py                # 数据自检
 python -m astock.query holders --min-drop 5   # 命令行查询
 ```
 
-# 页面结构
+## 页面结构
 
 | 路径 | 页面 | 说明 |
 |---|---|---|
@@ -89,12 +103,16 @@ docker compose logs -f            # 看启动日志
    - 或 SSH 进 NAS：`cd /volume1/docker/astock && sudo docker compose up -d --build`
 4. **访问**：`http://<NAS_IP>:5001`。
 
-> 如果 NAS 上不方便 `build`（很多型号没有编译器、拉 pypi 慢），可以在 PC 上构建后导出：
-> ```bash
-> docker save astock-screener:latest -o astock-screener.tar
-> ```
-> 把 tar 传到 NAS，然后 `sudo docker load -i astock-screener.tar`，
-> 再把 `docker-compose.yml` 里的 `build: .` 注释掉，直接 `docker compose up -d`。
+> 如果 NAS 上不方便 `build`（很多型号没有编译器、拉 pypi 慢），可以在 PC 上构建后导出，
+> 再把 tar 传到 NAS 加载。`docker-compose.yml` 里把 `build: .` 注释掉即可直接 `up -d`。
+
+```bash
+# PC 上导出镜像
+docker save astock-screener:latest -o astock-screener.tar
+
+# 传到 NAS 后加载
+sudo docker load -i astock-screener.tar
+```
 
 ### 首次没有数据库时
 
@@ -279,7 +297,7 @@ docker compose run --rm astock python tools/build.py update
 
 在没有可靠数据前，首页不展示指数 PE，避免给出错误估值。
 
-# A 股前置数据层（astock_screener）
+## 数据层说明
 
 多市场选股程序的第一块地基：**把 A 股所有选股要用的数据落到本地**，之后所有查询都读本地库，
 接口只负责增量更新。
@@ -541,7 +559,7 @@ python web/app.py --port 5001     # 或双击 web/启动.bat
   **拼音首字母**（`cyhb`）。`↑` `↓` 选择、`Enter` 确认并直接打开该股 K 线、
   `Esc` 收起下拉（再按一次清空）。框右侧 `✕` 一键清空并恢复筛选；
   关键字同样会作用到筛选接口（`?keyword=cyhb` → 只留创业环保）。
-  拼音索引由 `tools/build_pinyin.py` 生成（约 100 行，无需第三方库，Unihan 读音表，
+  拼音索引由 build_pinyin.py 生成（约 100 行，无需第三方库，Unihan 读音表，
   多音字如「银行/出行」会同时收录 `payh` 和 `payx`）。
 - **图标**：一套 Feather / Lucide 风格线性图标（`static/icons.js`，24 格 viewBox、
   2px 描边），用于主题切换（☾/☀）、外链、复制、星标、删除、本地库、用户、保存、返回。
@@ -619,7 +637,7 @@ python web/app.py --port 5001     # 或双击 web/启动.bat
 缓存按**交易日失效**：新 K 线进来（`bars` 最大日期变化）后标记对不上，会自动重算。
 面板「形态信号」显示 `已算 N/58 组合`，点「同步」= 清掉当天缓存强制重算。
 
-`tools/build_patterns.py` 仍保留，用于手动预热全部组合（约 **24 秒**），结果落 `pattern_signal` 表，
+build_patterns.py 仍保留，用于手动预热全部组合（约 **24 秒**），结果落 `pattern_signal` 表，
 宽表查询时只做一次 join，界面上不增加等待。日线更新后在「本地库」里点
 **形态信号 → 同步**即可刷新（也注册进了 `sync.py` 的 `patterns`）。
 
@@ -739,7 +757,7 @@ K 线图上会在启动那根画竖虚线，标注 `启动 +4.7% · 量2.5×`。
 |---|---|
 | 局部低点 | 前后 5 根 K 线里最低（`LLV(L,11)`） |
 | 两底间隔 | 20~45 个交易日 |
-| 两底价差 | `|L2−L1|/L1` ≤ 4% |
+| 两底价差 | 两底价差绝对值 `abs(L2−L1)/L1` ≤ 4% |
 | 颈线 H | 两底之间的最高价，且至少比两底高 5% |
 | 前置下跌 | L1 之前 40 根内，最高点到 L1 跌 ≥ 15% |
 | 右底缩量 | 右底 5 日均量 ≤ 左底 5 日均量 × 0.8 |
@@ -998,6 +1016,3 @@ ROE 取**最新报告期加权 ROE 年化**，因为 A 股 ROE 是年内累计�
 2. 筹码因子：读 `holders`，算连续 N 期下降；
 3. 财务因子：读 `financials`，先折算单季再求和；
 4. 规则引擎：把三类因子按 YAML 组合成候选清单。
-#   a s t o c k _ s c r e e n e r 
- 
- 
