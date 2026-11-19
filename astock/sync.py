@@ -141,7 +141,9 @@ def sync_bars_symbol(conn: sqlite3.Connection, symbol: str, days: int = 40) -> d
                  (symbol, now))
     conn.execute("UPDATE bar_meta SET updated_at=? WHERE symbol=?", (now, symbol))
     conn.commit()
-    db.set_meta(conn, "sync_bars_at", now)
+    # 单只同步只记自己的时间，绝不能覆盖 sync_bars_at（那是「全量同步」的口径）
+    db.set_meta(conn, "sync_bars_symbol_at", now)
+    db.set_meta(conn, "sync_bars_symbol_symbol", symbol)
     conn.commit()
     latest = conn.execute("SELECT MAX(date) FROM bars WHERE symbol=?", (symbol,)).fetchone()[0]
     return {"ok": True, "symbol": symbol, "name": row[0], "rows": len(rows),

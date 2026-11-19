@@ -501,14 +501,37 @@ def list_industries() -> list[dict]:
     return [{"k": name, "label": name, "n": n} for name, n in rows]
 
 
+def market_dates(conn, n: int = 2) -> list[str]:
+    """最近 n 个「覆盖足够多股票」的交易日。
+
+    盘中若只有少数股票被单独同步，最新日期可能只有几只；不能拿这个日期
+    做全市场 INNER JOIN，否则个股列表会只剩这几只。这里跳过覆盖率过低
+    的日期，回退到上一个完整交易日。
+    """
+    recent = [r[0] for r in conn.execute(
+        "SELECT DISTINCT date FROM bars ORDER BY date DESC LIMIT 16")]
+    if not recent:
+        return []
+    active = conn.execute(
+        "SELECT COUNT(1) FROM securities WHERE COALESCE(status, 'L') = 'L'").fetchone()[0] or 1
+    threshold = max(1000, int(active * 0.5))
+    good: list[str] = []
+    for d in recent:
+        cnt = conn.execute("SELECT COUNT(1) FROM bars WHERE date = ?", (d,)).fetchone()[0]
+        if cnt >= threshold:
+            good.append(d)
+            if len(good) >= n:
+                return good
+    return good if len(good) >= n else recent[:n]
+
+
 def stock_list(industry: str = "", sort: str = "pct", direction: str = "desc",
                limit: int = 50, offset: int = 0) -> dict:
-    """全部个股快照（最新交易日收盘）：按涨幅/成交量/换手率/市值等排行。"""
+    """全部个股快照（最新完整交易日收盘）：按涨幅/成交量/换手率/市值等排行。"""
     t0 = time.time()
     conn = db.connect()
     try:
-        dates = [r[0] for r in conn.execute(
-            "SELECT DISTINCT date FROM bars ORDER BY date DESC LIMIT 2")]
+        dates = market_dates(conn, 2)
         if len(dates) < 2:
             return {"rows": [], "count": 0, "offset": max(0, int(offset)),
                     "date": None, "elapsed": round(time.time() - t0, 2)}
@@ -575,10 +598,10 @@ def datasets() -> dict:
     meta = lambda k: db.get_meta(conn, k)  # noqa: E731
     init_at = meta("init_at")
 
-    def item(key, name, coverage, latest, synced, note=""):
+    def item(key, name, coverage, latest, synced, note="", hint=""):
         return {
             "key": key, "name": name, "coverage": coverage, "latest": latest,
-            "synced_at": synced or init_at, "note": note,
+            "synced_at": synced or init_at, "note": note, "synced_hint": hint,
             "running": any(j["kind"] == key and j["status"] == "running" for j in JOBS.values()),
         }
 
@@ -592,7 +615,8 @@ def datasets() -> dict:
     out = [
         item("bars", "日线行情", f"{q('SELECT COUNT(DISTINCT symbol) FROM bars')} 只",
              q("SELECT MAX(date) FROM bars"), meta("sync_bars_at"),
-             f"{q('SELECT COUNT(1) FROM bars')/1e4:.0f} 万行 · {adj_note}"),
+             f"{q('SELECT COUNT(1) FROM bars')/1e4:.0f} 万行 · {adj_note}",
+             f"整库同步时间 {meta('sync_bars_at') or '—'}（单只/收藏页同步不更新这里）"),
         item("holders", "股东户数", f"{q('SELECT COUNT(DISTINCT symbol) FROM holders')} 只",
              q("SELECT MAX(end_date) FROM holders"), meta("sync_holders_at"),
              f"{q('SELECT COUNT(1) FROM holders')/1e4:.1f} 万条"),
@@ -708,8 +732,7 @@ def favorites_list(user_id: int, sort: str = "created", direction: str = "desc")
     t0 = time.time()
     conn = db.connect()
     try:
-        dates = [r[0] for r in conn.execute(
-            "SELECT DISTINCT date FROM bars ORDER BY date DESC LIMIT 2")]
+        dates = market_dates(conn, 2)
         if len(dates) < 2:
             return {"rows": [], "count": 0, "date": None, "elapsed": 0}
         latest, prev = dates[0], dates[1]

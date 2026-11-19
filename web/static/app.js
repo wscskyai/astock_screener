@@ -1997,7 +1997,7 @@ function renderDatasets() {
       <td><span class="dp-name">${d.name}</span><span class="dp-note">${d.note || ""}</span></td>
       <td>${d.coverage}</td>
       <td class="dp-time">${d.latest || "—"}</td>
-      <td class="dp-time" data-synced="${d.synced_at || ""}" title="${d.synced_at || ""}">${relTime(d.synced_at)}</td>
+      <td class="dp-time" data-synced="${d.synced_at || ""}" title="${d.synced_hint || d.synced_at || ""}">${relTime(d.synced_at)}</td>
       <td class="dp-act">
         <button class="mini" data-sync="${d.key}" ${needLogin ? "disabled" : ""}
                 title="${needLogin ? "请先登录" : "增量同步"}">同步</button>
