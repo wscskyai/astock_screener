@@ -598,11 +598,23 @@ def datasets() -> dict:
     meta = lambda k: db.get_meta(conn, k)  # noqa: E731
     init_at = meta("init_at")
 
+    def running_job(key):
+        """这个数据源当前是否有同步任务在跑；有就带上它的进度。"""
+        for j in JOBS.values():
+            if j["status"] != "running":
+                continue
+            jk = j["kind"]
+            if jk == key or (jk == "bars_rebuild" and key == "bars"):
+                return {"id": j["id"], "name": j["name"], "done": j["done"],
+                        "total": j["total"], "msg": j["msg"] or "同步中"}
+        return None
+
     def item(key, name, coverage, latest, synced, note="", hint=""):
+        job = running_job(key)
         return {
             "key": key, "name": name, "coverage": coverage, "latest": latest,
             "synced_at": synced or init_at, "note": note, "synced_hint": hint,
-            "running": any(j["kind"] == key and j["status"] == "running" for j in JOBS.values()),
+            "running": bool(job), "job": job,
         }
 
     done, allc = sync.qfq_progress(conn)

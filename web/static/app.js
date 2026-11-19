@@ -1980,7 +1980,11 @@ function relTime(iso) {
 
 function renderDatasets() {
   if (!DS) return;
-  $("dpSub").textContent = `本地库 ${DS.db_mb} MB`;
+  const running = DS.datasets.filter((d) => d.job);
+  $("dpSub").textContent = `本地库 ${DS.db_mb} MB` +
+    (running.length
+      ? ` · 正在同步：${running.map((d) => `${d.name}${pctText(d.job)}`).join("、")}`
+      : "");
 
   // 顶栏标签上的复权状态 / 同步中指示灯
   const bars = DS.datasets.find((d) => d.key === "bars");
@@ -1992,21 +1996,28 @@ function renderDatasets() {
   $("dpLoginHint").hidden = !needLogin;
   $("dpRows").classList.toggle("readonly", needLogin);
 
-  $("dpRows").innerHTML = DS.datasets.map((d) => `
-    <tr data-kind="${d.key}">
-      <td><span class="dp-name">${d.name}</span><span class="dp-note">${d.note || ""}</span></td>
+  $("dpRows").innerHTML = DS.datasets.map((d) => {
+    const job = d.job;
+    const pct = job && job.total ? Math.round((job.done / job.total) * 100) : 0;
+    return `
+    <tr data-kind="${d.key}" class="${job ? "syncing" : ""}">
+      <td><span class="dp-name">${d.name}</span>${job ? '<span class="dp-badge">同步中</span>' : ""}<span class="dp-note">${d.note || ""}</span></td>
       <td>${d.coverage}</td>
       <td class="dp-time">${d.latest || "—"}</td>
-      <td class="dp-time" data-synced="${d.synced_at || ""}" title="${d.synced_hint || d.synced_at || ""}">${relTime(d.synced_at)}</td>
+      <td class="dp-time" data-synced="${d.synced_at || ""}" title="${d.synced_hint || d.synced_at || ""}">${
+        job ? `<span class="dp-running">${job.msg || "同步中"}</span>
+               <div class="progress"><i style="width:${pct}%"></i></div>`
+            : relTime(d.synced_at)}</td>
       <td class="dp-act">
-        <button class="mini" data-sync="${d.key}" ${needLogin ? "disabled" : ""}
-                title="${needLogin ? "请先登录" : "增量同步"}">同步</button>
+        <button class="mini" data-sync="${d.key}" ${needLogin || job ? "disabled" : ""}
+                title="${needLogin ? "请先登录" : job ? "正在同步…" : "增量同步"}">${job ? "同步中…" : "同步"}</button>
         ${d.key === "bars"
-          ? `<button class="mini" data-sync="bars_rebuild" ${needLogin ? "disabled" : ""}
-                     title="${needLogin ? "请先登录" : "重新拉取全部历史，换成前复权（较慢）"}">重建</button>`
+          ? `<button class="mini" data-sync="bars_rebuild" ${needLogin || job ? "disabled" : ""}
+                     title="${needLogin ? "请先登录" : job ? "正在同步…" : "重新拉取全部历史，换成前复权（较慢）"}">重建</button>`
           : ""}
       </td>
-    </tr>`).join("");
+    </tr>`;
+  }).join("");
 
   document.querySelectorAll("[data-sync]").forEach((b) => {
     b.addEventListener("click", () => {
@@ -2014,6 +2025,59 @@ function renderDatasets() {
       doSync(b.dataset.sync);
     });
   });
+
+  watchJobs();     // 有任务在跑就自动刷新进度（打开面板也能看到）
+}
+
+function pctText(job) {
+  return job && job.total ? ` ${Math.round((job.done / job.total) * 100)}%` : "";
+}
+
+let _jobWatch = null;
+
+function stopJobWatch() {
+  if (_jobWatch) { clearInterval(_jobWatch); _jobWatch = null; }
+}
+
+/** 面板里有 running 的任务时，每 1.6s 拉一次状态，完成后刷新整张表 */
+function watchJobs() {
+  stopJobWatch();
+  const jobs = (DS && DS.datasets ? DS.datasets : [])
+    .filter((d) => d.job && d.job.id)
+    .map((d) => ({ key: d.key, name: d.name, id: d.job.id }));
+  if (!jobs.length) return;
+  _jobWatch = setInterval(async () => {
+    let alive = 0;
+    for (const it of jobs) {
+      let st = null;
+      try { st = await (await fetch(`/api/sync/status?id=${it.id}`)).json(); }
+      catch { alive += 1; continue; }
+      if (st.status === "running") {
+        alive += 1;
+        paintJob(it.key, st);
+        $("dpSub").textContent = `本地库 ${DS.db_mb} MB · 正在同步：${it.name}${pctText(st)}`;
+        continue;
+      }
+      stopJobWatch();
+      if (st.status === "done") toast(`${it.name} 同步完成`);
+      else toast(`${it.name} 同步失败：${st.msg || "未知错误"}`);
+      await loadDatasets();
+      if (state.resultTab === "stocks") loadStockList();
+      return;
+    }
+    if (!alive) { stopJobWatch(); await loadDatasets(); }
+  }, 1600);
+}
+
+function paintJob(key, st) {
+  const row = document.querySelector(`tr[data-kind="${key}"]`);
+  if (!row) return;
+  row.classList.add("syncing");
+  const cell = row.querySelector("[data-synced]");
+  if (!cell) return;
+  const pct = st.total ? Math.round((st.done / st.total) * 100) : 0;
+  cell.innerHTML = `<span class="dp-running">${st.msg || "同步中"}</span>
+    <div class="progress"><i style="width:${pct}%"></i></div>`;
 }
 
 async function loadDatasets() {
@@ -2029,43 +2093,15 @@ async function doSync(kind) {
   if (kind === "bars_rebuild" &&
       !confirm("全量重建会重新拉取 5578 只的全部历史并改写日线表，约需 8~12 分钟。继续？")) return;
   const btn = document.querySelector(`[data-sync="${kind}"]`);
-  if (btn) { btn.disabled = true; btn.textContent = "同步中"; }
+  if (btn) { btn.disabled = true; btn.textContent = "同步中…"; }
   try {
     const r = await fetch(`/api/sync?kind=${encodeURIComponent(kind)}`, { method: "POST" });
     const d = await r.json();
-    if (d.error) { toast(d.error); if (btn) { btn.disabled = false; btn.textContent = "同步"; } return; }
-    await poll(d.job, kind);
+    if (d.error) { toast(d.error); }
+    await loadDatasets();          // 行上会显示「同步中」，之后由 watchJobs 跟进度
   } catch (e) {
     toast("同步失败：" + e.message);
-    if (btn) { btn.disabled = false; btn.textContent = "同步"; }
-  }
-}
-
-async function poll(jobId, kind) {
-  const rowKind = kind === "bars_rebuild" ? "bars" : kind;
-  const row = document.querySelector(`tr[data-kind="${rowKind}"]`);
-  const cell = row && row.querySelector("[data-synced]");
-  while (true) {
-    await sleep(800);
-    let d;
-    try { d = await (await fetch(`/api/sync/status?id=${jobId}`)).json(); }
-    catch { continue; }
-    if (d.status === "running") {
-      if (cell) {
-        const pct = d.total ? Math.round((d.done / d.total) * 100) : 0;
-        cell.innerHTML = `${d.msg || "同步中"}<div class="progress"><i style="width:${pct}%"></i></div>`;
-      }
-      continue;
-    }
-    if (d.status === "done") {
-      const r = d.result || {};
-      toast(`${kind} 同步完成${r.updated !== undefined ? "，更新 " + r.updated + " 只" : ""}`);
-    } else if (d.status === "error") {
-      toast("同步失败：" + (d.msg || "未知错误"));
-    }
     await loadDatasets();
-    if (state.resultTab === "stocks") loadStockList();
-    return;
   }
 }
 
@@ -2073,6 +2109,7 @@ function setPanel(open) {
   $("dbPop").hidden = !open;
   $("dbBtn").setAttribute("aria-expanded", open ? "true" : "false");
   if (open) loadDatasets();
+  else stopJobWatch();
 }
 
 $("dpLoginBtn").addEventListener("click", (e) => {

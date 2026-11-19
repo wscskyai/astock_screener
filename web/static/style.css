@@ -638,6 +638,16 @@ button.mini:hover { border-color: var(--line-strong); color: var(--brand); }
 button.mini:disabled { color: var(--muted-3); border-color: var(--line); cursor: progress; }
 .progress { height: 3px; background: var(--divider); border-radius: 2px; overflow: hidden; margin-top: 4px; }
 .progress > i { display: block; height: 100%; background: var(--brand); transition: width .3s; }
+.dp-badge {
+  margin-left: 6px; padding: 1px 5px; border-radius: 3px;
+  font-size: 10.5px; font-weight: 500; color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 16%, transparent);
+}
+.dp-running {
+  display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+  vertical-align: bottom; color: var(--brand);
+}
+.dp-table tbody tr.syncing td { background: color-mix(in srgb, var(--brand) 6%, transparent); }
 
 /* ---------- 收藏 ---------- */
 th.fav-col, td.fav-col { width: 34px; padding: 0 0 0 10px; text-align: center; }
