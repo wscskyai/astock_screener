@@ -17,8 +17,51 @@ import sqlite3
 import time
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 项目根目录
-# 容器里用环境变量指定库位置（默认仍是项目下的 data/astock.db）
-DB_PATH = os.environ.get("ASTOCK_DB") or os.path.join(BASE_DIR, "data", "astock.db")
+
+
+def load_dotenv(path: str | None = None) -> None:
+    """读项目根的 .env（docker compose 也用这份配置）。
+
+    只补环境里没有的键，已经 export 的变量优先，不会被覆盖。
+    """
+    path = path or os.path.join(BASE_DIR, ".env")
+    if not os.path.isfile(path):
+        return
+    try:
+        with open(path, encoding="utf-8") as f:
+            for raw in f:
+                line = raw.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                if line.startswith("export "):
+                    line = line[len("export "):]
+                k, v = line.split("=", 1)
+                k = k.strip()
+                v = v.strip().strip("'\"")
+                if k:
+                    os.environ.setdefault(k, v)
+    except OSError:
+        pass
+
+
+load_dotenv()
+
+
+def resolve_db_path() -> str:
+    """库位置优先级：ASTOCK_DB > ASTOCK_DATA_DIR/astock.db > 项目 data/astock.db。"""
+    explicit = os.environ.get("ASTOCK_DB", "").strip()
+    if explicit:
+        return os.path.normpath(explicit)
+    data_dir = os.environ.get("ASTOCK_DATA_DIR", "").strip()
+    if data_dir:
+        data_dir = os.path.normpath(data_dir.replace("\\", "/"))
+        if not os.path.isabs(data_dir):
+            data_dir = os.path.join(BASE_DIR, data_dir)
+        return os.path.join(data_dir, "astock.db")
+    return os.path.join(BASE_DIR, "data", "astock.db")
+
+
+DB_PATH = resolve_db_path()
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS securities(

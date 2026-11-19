@@ -12,6 +12,18 @@
 [Docker / NAS 部署](#docker--nas-部署) · [启动与性能](#启动与性能) ·
 [数据层说明](#数据层说明) · [Web 界面](#6-web-界面)
 
+## 配置（.env）
+
+项目根的 `.env` 会被 `python` 和 `docker compose` 同时读取（`.env` 不入库，参考 `.env.example`）：
+
+```ini
+ASTOCK_DATA_DIR=D:/astock_data    # 数据库所在目录（该目录下放 astock.db）
+ASTOCK_SQLITE_SAFE=1              # 关 WAL/mmap，主机与容器共用一个库时建议开
+```
+
+库位置优先级：`ASTOCK_DB`（完整文件路径）＞ `ASTOCK_DATA_DIR/astock.db` ＞ 项目 `data/astock.db`。
+命令行临时覆盖：`set ASTOCK_DB=D:\astock_data\astock.db`。
+
 ## 目录结构
 
 ```
@@ -49,7 +61,7 @@ astock_screener/
 常用命令：
 
 ```bash
-python web/app.py --port 5001            # 启动站点（开发）
+python web/app.py --port 5001            # 启动站点（开发，自动读项目根 .env）
 python tools/build.py status             # 库状态
 python tools/build.py update             # 每日增量
 python tools/test_data.py                # 数据自检

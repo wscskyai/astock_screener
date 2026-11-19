@@ -1683,6 +1683,10 @@ def main() -> int:
         print(f"  数据   {st['securities']} 只 / 日线 {st['bars']/1e4:.0f} 万行 "
               f"({st['bar_range'][0]} ~ {st['bar_range'][1]})")
         print(f"  复权   前复权 {have}/{allc}　库 {st['db_mb']} MB")
+        if not st["securities"]:
+            print("  ⚠ 数据库里没有股票数据（可能读错了位置）")
+            print(f"    当前库：{db.DB_PATH}")
+            print("    检查项目根 .env 的 ASTOCK_DATA_DIR，或先跑：python tools/build.py init")
         users.ensure(conn)
         seeded = seed_screens(conn)
         n_user = conn.execute("SELECT COUNT(1) FROM users").fetchone()[0]
