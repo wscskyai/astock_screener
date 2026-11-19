@@ -427,6 +427,8 @@
       dayCount = Math.max(1, dates.length);
     }
     const span = Math.max(1, dayCount * perDay - 1);
+    // 存一份横轴映射：mousemove 里要用它把鼠标 x 反推成最近的数据点
+    state.minAxis = { padL, plotW, span, perDay, dayIdx, slots };
     const xAt = (i) => padL + (plotW * (dayIdx[i] * perDay + slots[i])) / span;
     const barW = Math.max(1, Math.min(6, (plotW / span) * 0.7));
 
@@ -495,10 +497,13 @@
 
     if (state.hover >= 0 && state.hover < pts.length) {
       const i = state.hover, p = pts[i], x = xAt(i);
+      // 十字线跟着鼠标走；没有鼠标位置（键盘/重绘）时退回数据点位置
+      const cx = state.mouse ? Math.max(padL, Math.min(padL + plotW, state.mouse.x)) : x;
+      const cy = state.mouse ? Math.max(padT, Math.min(padT + priceH, state.mouse.y)) : yP(p[1]);
       ctx.strokeStyle = C.label; ctx.globalAlpha = 0.5;
       ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, axisY); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(padL, yP(p[1])); ctx.lineTo(padL + plotW, yP(p[1])); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx, padT); ctx.lineTo(cx, axisY); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(padL, cy); ctx.lineTo(padL + plotW, cy); ctx.stroke();
       ctx.setLineDash([]); ctx.globalAlpha = 1;
       const pct = (p[1] / pre - 1) * 100;
       showTip(W, x, `<div class="tip-date">${p[0]}</div>
@@ -579,10 +584,12 @@
 
     if (state.hover >= 0 && state.hover < n) {
       const i = state.hover, b = bars[i], x = xAt(i);
+      const cx = state.mouse ? Math.max(padL, Math.min(padL + plotW, state.mouse.x)) : x;
+      const cy = state.mouse ? Math.max(padT, Math.min(padT + priceH, state.mouse.y)) : yP(b[4]);
       ctx.strokeStyle = C.label; ctx.globalAlpha = 0.5;
       ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, axisY); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(padL, yP(b[4])); ctx.lineTo(padL + plotW, yP(b[4])); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx, padT); ctx.lineTo(cx, axisY); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(padL, cy); ctx.lineTo(padL + plotW, cy); ctx.stroke();
       ctx.setLineDash([]); ctx.globalAlpha = 1;
       const chg = i > 0 ? (b[4] / bars[i - 1][4] - 1) * 100 : 0;
       showTip(W, x, `<div class="tip-date">${b[0]}</div>
@@ -656,12 +663,24 @@
                       : (state.bars || []).length;
       if (!n) return;
       const rect = cv.getBoundingClientRect();
-      state.mouse = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      const mx = e.clientX - rect.left;
+      state.mouse = { x: mx, y: e.clientY - rect.top };
       const padL = 8, padR = 104;
       const plotW = rect.width - padL - padR;
-      const i = isMin
-        ? Math.round(((e.clientX - rect.left - padL) / plotW) * (n - 1))
-        : Math.floor(((e.clientX - rect.left - padL) / plotW) * n);
+      let i = 0;
+      const ax = state.minAxis;
+      if (isMin && ax && ax.plotW > 0) {
+        // 分时：鼠标 x → 全天槽位 → 最近的一个数据点
+        const target = ((mx - padL) / ax.plotW) * ax.span;
+        let bestD = Infinity;
+        for (let k = 0; k < n; k++) {
+          const pos = ax.dayIdx[k] * ax.perDay + ax.slots[k];
+          const d = Math.abs(pos - target);
+          if (d < bestD) { bestD = d; i = k; }
+        }
+      } else {
+        i = Math.round(((mx - padL) / plotW) * n - 0.5);
+      }
       state.hover = Math.max(0, Math.min(n - 1, i));
       draw();
     });
