@@ -4,6 +4,8 @@ set PYTHONIOENCODING=utf-8
 cd /d "%~dp0.."
 rem 数据库放在同步盘之外（避免同步客户端锁住 SQLite 的 -shm）
 if exist "D:\astock_data\astock.db" set ASTOCK_DB=D:\astock_data\astock.db
+rem 与容器共用同一个库文件：关掉 WAL，避免 Windows 生成的 -shm 让 Docker 打不开
+set ASTOCK_SQLITE_SAFE=1
 rem 如果 Docker 容器已经在跑，就别再起本机实例（会抢 127.0.0.1:5001）
 set "RUNNING="
 for /f "tokens=*" %%s in ('docker inspect -f "{{.State.Running}}" astock-screener 2^>nul') do set "RUNNING=%%s"

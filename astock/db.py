@@ -314,17 +314,31 @@ def connect(path: str = DB_PATH, create: bool = True) -> sqlite3.Connection:
         return _connect_once(path, create)
     except sqlite3.OperationalError as e:
         msg = str(e).lower()
-        shm = path + "-shm"
-        if any(k in msg for k in ("disk i/o", "malformed", "unable to open")) and os.path.exists(shm):
-            # 典型场景：Windows 上跑过服务端，留下平台相关的 -shm；容器里 SQLite 打不开。
-            # 挪走 -shm（不删 -wal，数据还在），SQLite 会自己从 WAL 重建索引文件。
-            backup = f"{shm}.stale-{int(time.time())}"
-            try:
-                os.replace(shm, backup)
-            except OSError:
-                raise e
+        if any(k in msg for k in ("disk i/o", "malformed", "unable to open")) \
+                and _drop_stale_shm(path):
             return _connect_once(path, create)
         raise
+
+
+def _drop_stale_shm(path: str) -> bool:
+    """清掉别的系统留下的 -shm（平台相关的共享内存文件）。
+
+    典型场景：Windows 上跑过服务端、容器里 SQLite 打不开这个库。
+    先 unlink（9p 上常能成功），不行再改名备份；-wal 保留，数据不会丢。
+    """
+    shm = path + "-shm"
+    if not os.path.exists(shm):
+        return False
+    try:
+        os.remove(shm)                       # 优先直接删：SQLite 会从 -wal 重建
+        return True
+    except OSError:
+        pass
+    try:
+        os.replace(shm, f"{shm}.stale-{int(time.time())}")
+        return True
+    except OSError:
+        return False
 
 
 def _connect_once(path: str, create: bool) -> sqlite3.Connection:
