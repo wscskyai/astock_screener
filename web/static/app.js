@@ -53,6 +53,7 @@ const state = {
   periods: [{ k: "latest", label: "最新一期" }],
   years: [],
   holderYears: [],
+  top10Years: [],
   screens: [],
   activeScreen: null,
   lastConds: null,    // 当前表格结果实际使用的条件（运行成功后快照）
@@ -78,6 +79,7 @@ const FALLBACK_LABELS = {
   pe: "市盈率(TTM)", pb: "市净率", dv: "股息率",
   pe_pct: "PE 分位", pb_pct: "PB 分位", dv_pct: "股息分位",
   drop_pct: "户数三季降幅", profit_yi: "近三季净利", roe: "ROE(年化)",
+  top10_ratio: "前十大股东持股占比",
   yoy: "净利同比", rev_yoy: "营收同比", gross_margin: "毛利率",
   net_profit: "单期净利", mktcap: "总市值", years: "上市年数", exclude_st: "排除 ST",
 };
@@ -182,7 +184,8 @@ function condRowHtml(c, i) {
              `<option value="${p.k}" ${cur === p.k ? "selected" : ""}>${p.label}</option>`).join("")}
          </select>`
       : "";
-    const years = f.yearSource === "holder" ? state.holderYears : state.years;
+    const years = f.yearSource === "holder" ? state.holderYears
+      : f.yearSource === "top10" ? state.top10Years : state.years;
     const yearSel = ((f.period || f.options) && cur !== "latest" && years.length)
       ? `<select class="cond-period" data-year="${i}" title="报告年份">
            <option value="" ${c.y ? "" : "selected"}>最新</option>
@@ -346,7 +349,15 @@ function condParts(conds) {
     if (c.min != null && c.max != null) rng = `${c.min}~${c.max}${unit}`;
     else if (c.min != null) rng = `≥${c.min}${unit}`;
     else if (c.max != null) rng = `≤${c.max}${unit}`;
-    return `${f.label} ${rng}`;
+    let period = "";
+    if (f.k === "top10_ratio") {
+      const opts = f.options || state.periods;
+      const p = c.p || "latest";
+      const lab = p === "latest" ? "当季"
+        : (opts.find((o) => o.k === p)?.label || p);
+      period = c.y ? `${c.y}年${lab}` : lab;
+    }
+    return `${f.label}${period ? `（${period}）` : ""} ${rng}`;
   });
 }
 
@@ -808,9 +819,14 @@ const fmt = (n, d = 2) =>
 /** 净利那一列跟随条件口径改名 */
 function applyColumnLabels() {
   const th = document.querySelector('thead th[data-key="yoy"]');
-  if (!th) return;
-  th.textContent = state.cols.yoy === "np_yoy" ? "净利同比(单季)"
-    : state.cols.yoy === "np_qoq" ? "净利环比(单季)" : "净利同比";
+  if (th) {
+    th.textContent = state.cols.yoy === "np_yoy" ? "净利同比(单季)"
+      : state.cols.yoy === "np_qoq" ? "净利环比(单季)" : "净利同比";
+  }
+  const thDrop = document.querySelector('thead th[data-key="drop_pct"]');
+  if (thDrop) {
+    thDrop.textContent = state.cols.drop_pct === "top10_ratio" ? "十大占比" : "户数降幅";
+  }
 }
 
 function sortedRows() {
@@ -866,7 +882,7 @@ function renderTable() {
         <a class="ext" href="${THS(r.symbol)}" target="_blank" rel="noopener"
            title="在同花顺查看 ${r.name}">${iconSvg("external", { size: 13 })}</a>
       </td>
-      <td class="num ${r.drop_pct > 0 ? "neg" : r.drop_pct < 0 ? "pos" : ""}">${fmt(r.drop_pct)}%</td>
+      <td class="num ${state.cols.drop_pct !== "top10_ratio" && r.drop_pct > 0 ? "neg" : state.cols.drop_pct !== "top10_ratio" && r.drop_pct < 0 ? "pos" : ""}">${fmt(effVal(r, "drop_pct"))}%</td>
       <td class="num">${fmt(r.profit_yi, 2)}</td>
       <td class="num">${fmt(r.mktcap, 1)}</td>
       <td class="num muted" title="流通市值">${fmt(r.float_mktcap, 1)}</td>
@@ -1431,7 +1447,8 @@ function toast(msg) {
 
 $("csvBtn").addEventListener("click", async () => {
   if (!state.total) return;
-  const head = "代码,名称,板块,户数降幅%,三季净利(亿),总市值(亿),流通市值(亿),PE,PB,股息率%,ROE年化%,净利同比%,营收同比%,毛利率%,报告期";
+  const top10 = state.lastConds?.some((c) => c.k === "top10_ratio");
+  const head = `代码,名称,板块,${top10 ? "十大占比%" : "户数降幅%"},三季净利(亿),总市值(亿),流通市值(亿),PE,PB,股息率%,ROE年化%,净利同比%,营收同比%,毛利率%,报告期`;
   // 导出要全量：绕过分页再取一次（limit=0）
   const q = currentParams();
   q.set("limit", "0");
@@ -1442,7 +1459,7 @@ $("csvBtn").addEventListener("click", async () => {
     if (d.rows && d.rows.length) allRows = d.rows;
   } catch (e) { toast("导出取全量失败，导出当前页"); }
   const body = allRows.map(r =>
-    [r.symbol, r.name, r.board, r.drop_pct, r.profit_yi,
+    [r.symbol, r.name, r.board, effVal(r, "drop_pct") ?? "", r.profit_yi,
      r.mktcap ?? "", r.float_mktcap ?? "", r.pe ?? "", r.pb ?? "", r.dv ?? "", r.roe_annual ?? "",
      r.yoy ?? "", r.rev_yoy ?? "", r.gross_margin ?? "", r.period].join(",")).join("\n");
   const blob = new Blob(["\ufeff" + head + "\n" + body], { type: "text/csv;charset=utf-8" });
@@ -2158,6 +2175,7 @@ async function loadFields() {
         if (d.periods && d.periods.length) state.periods = d.periods;
         state.years = d.years || [];
         state.holderYears = d.holderYears || [];
+        state.top10Years = d.top10Years || [];
         return;
       }
     } catch (e) { /* retry */ }

@@ -105,7 +105,7 @@ def start_sync(kind: str) -> dict:
 
 
 # ---------------------------------------------------------------- 自动同步
-AUTO_SYNC_KINDS = ("bars", "valuation", "mktcap", "holders", "financials")
+AUTO_SYNC_KINDS = ("bars", "valuation", "mktcap", "holders", "top10", "financials")
 
 
 def start_auto_sync() -> str | None:
@@ -596,6 +596,9 @@ def datasets() -> dict:
         item("holders", "股东户数", f"{q('SELECT COUNT(DISTINCT symbol) FROM holders')} 只",
              q("SELECT MAX(end_date) FROM holders"), meta("sync_holders_at"),
              f"{q('SELECT COUNT(1) FROM holders')/1e4:.1f} 万条"),
+        item("top10", "前十大股东占比", f"{q('SELECT COUNT(DISTINCT symbol) FROM top10_holders')} 只",
+             q("SELECT MAX(end_date) FROM top10_holders"), meta("sync_top10_at"),
+             f"{q('SELECT COUNT(1) FROM top10_holders')/1e4:.1f} 万条"),
         item("financials", "财务数据", f"{q('SELECT COUNT(DISTINCT symbol) FROM financials')} 只",
              q("SELECT MAX(report_period) FROM financials"), meta("sync_financials_at"),
              f"{q('SELECT COUNT(1) FROM financials')/1e4:.1f} 万条"),
@@ -860,6 +863,8 @@ def column_switch(conds: list[dict]) -> dict:
         cols["yoy"] = "np_qoq"
     if "holder_chg" in keys:
         cols["drop_pct"] = "drop_pct"
+    if "top10_ratio" in keys:
+        cols["drop_pct"] = "top10_ratio"
     return cols
 
 
@@ -1259,8 +1264,20 @@ class Handler(BaseHTTPRequestHandler):
                     metrics.metrics(conn)
                 finally:
                     conn.close()
+            if not metrics.TOP10_YEARS:    # 同步完前十大股东后无需强建宽表，直接补年份
+                conn = db.connect()
+                try:
+                    years = [int(r[0]) for r in conn.execute(
+                        "SELECT DISTINCT substr(end_date, 1, 4) FROM top10_holders "
+                        "WHERE end_date IS NOT NULL")]
+                    metrics.TOP10_YEARS = sorted(years, reverse=True)
+                except Exception:  # noqa: BLE001
+                    pass
+                finally:
+                    conn.close()
             self._json({"fields": metrics.FIELDS, "periods": metrics.PERIODS,
-                        "years": metrics.YEARS, "holderYears": metrics.HOLDER_YEARS})
+                        "years": metrics.YEARS, "holderYears": metrics.HOLDER_YEARS,
+                        "top10Years": metrics.TOP10_YEARS})
             status = "200"
         elif path == "/api/screens":
             me = self._user()

@@ -26,6 +26,11 @@ EM_LIST = ("https://push2.eastmoney.com/api/qt/clist/get?pn={pn}&pz=100&po=1&np=
 EM_HOLDER = ("https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_HOLDERNUM_DET"
              "&columns=ALL&filter=(SECURITY_CODE%3D%22{code}%22)&pageNumber=1&pageSize=16"
              "&sortColumns=END_DATE&sortTypes=-1")
+# 十大股东明细（按报告期全市场分页）；汇总每只股票的 HOLD_NUM_RATIO
+EM_TOP10 = ("https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_F10_EH_HOLDERS"
+            "&columns=SECURITY_CODE,HOLD_NUM_RATIO,HOLDER_RANK,END_DATE"
+            "&pageNumber={pn}&pageSize=5000&sortColumns=SECURITY_CODE,HOLDER_RANK&sortTypes=1,1"
+            "&filter=(END_DATE%3D%27{date}%27)")
 EM_FIN = ("https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_LICO_FN_CPD"
           "&columns=ALL&filter=(SECURITY_CODE%3D%22{code}%22)&pageNumber=1&pageSize=16"
           "&sortColumns=REPORTDATE&sortTypes=-1")
@@ -519,6 +524,26 @@ def fetch_holders(code: str) -> list[tuple]:
             float(r["AVG_MARKET_CAP"]) if r.get("AVG_MARKET_CAP") is not None else None,
         ))
     return out
+
+
+def fetch_top10_ratio(report_date: str) -> list[tuple]:
+    """某一报告期全市场前十大股东合计持股占比。
+
+    返回 [(symbol, end_date, top10_ratio)]，占比单位为 %。
+    数据源按股东明细返回，这里按股票汇总 HOLD_NUM_RATIO。
+    """
+    rows = _pages(EM_TOP10, date=report_date)
+    sums: dict[str, float] = {}
+    for r in rows:
+        code = str(r.get("SECURITY_CODE") or "").zfill(6)
+        if len(code) != 6:
+            continue
+        v = _f(r.get("HOLD_NUM_RATIO"))
+        if v is None:
+            continue
+        sums[code] = sums.get(code, 0.0) + v
+    # 上游比例保留两位小数，个别会因四舍五入略超 100%；占比封顶 100%
+    return [(code, report_date, round(min(v, 100.0), 2)) for code, v in sums.items()]
 
 
 # ---------------------------------------------------------------- 财务

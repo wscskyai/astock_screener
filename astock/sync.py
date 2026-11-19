@@ -7,14 +7,16 @@
 from __future__ import annotations
 
 import sqlite3
+from calendar import monthrange
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from . import db, patterns
 from . import sources_cn as src
 
 BARS_COLS = ["symbol", "date", "open", "high", "low", "close", "volume"]
 HOLDER_COLS = ["symbol", "end_date", "announce_date", "holder_num", "chg_pct", "avg_mktcap"]
+TOP10_COLS = ["symbol", "end_date", "top10_ratio"]
 FIN_COLS = ["symbol", "report_period", "announce_date", "revenue", "net_profit",
             "net_profit_yoy", "eps", "roe", "is_cumulative", "revenue_yoy", "gross_margin"]
 
@@ -277,6 +279,55 @@ def sync_holders(conn: sqlite3.Connection, progress=None, workers: int = 6) -> d
     return {"updated": done}
 
 
+def _latest_quarter_ends(n: int = 12) -> list[str]:
+    """最近 n 个已结束的季末（含当季，若已过季末）。"""
+    today = date.today()
+    q = (today.month - 1) // 3
+    year = today.year
+    end = date(year, q * 3 + 3, monthrange(year, q * 3 + 3)[1])
+    if end > today:
+        q -= 1
+        if q < 0:
+            year -= 1
+            q = 3
+        end = date(year, q * 3 + 3, monthrange(year, q * 3 + 3)[1])
+    out = []
+    for _ in range(n):
+        out.append(end.isoformat())
+        q -= 1
+        if q < 0:
+            year -= 1
+            q = 3
+        end = date(year, q * 3 + 3, monthrange(year, q * 3 + 3)[1])
+    return out
+
+
+def sync_top10(conn: sqlite3.Connection, progress=None, quarters: int = 12) -> dict:
+    """同步最近 N 个报告期的前十大股东合计持股占比。
+
+    数据源一次按报告期返回全市场股东明细，页数远少于逐只股票请求。
+    """
+    ends = _latest_quarter_ends(quarters)
+    total, done, rows_n = len(ends), 0, 0
+    for d in ends:
+        if progress:
+            progress(done, total, f"前十大股东 {d} …")
+        try:
+            rows = src.fetch_top10_ratio(d)
+        except Exception:  # noqa: BLE001
+            rows = []
+        if rows:
+            db.upsert(conn, "top10_holders", TOP10_COLS, rows)
+            conn.commit()
+            rows_n += len(rows)
+        done += 1
+        if progress:
+            progress(done, total, f"前十大股东 {d}（{done}/{total}）")
+    db.set_meta(conn, "sync_top10_at", _now())
+    conn.commit()
+    return {"quarters": total, "rows": rows_n}
+
+
 def sync_financials(conn: sqlite3.Connection, progress=None, workers: int = 6) -> dict:
     codes = _codes(conn)
     total, done, buf = len(codes), 0, []
@@ -474,6 +525,7 @@ SYNCERS = {
     "bars_rebuild": ("日线全量重建", rebuild_bars),
     "valuation": ("估值数据", sync_valuation),
     "holders": ("股东户数", sync_holders),
+    "top10": ("前十大股东占比", sync_top10),
     "financials": ("财务数据", sync_financials),
     "mktcap": ("总市值", sync_mktcap),
     "list_date": ("上市日期", sync_list_date),

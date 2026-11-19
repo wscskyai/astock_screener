@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import time
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 项目根目录
 # 容器里用环境变量指定库位置（默认仍是项目下的 data/astock.db）
@@ -54,6 +55,15 @@ CREATE TABLE IF NOT EXISTS holders(
     avg_mktcap    REAL,            -- 户均持仓市值
     PRIMARY KEY(symbol, end_date)
 ) WITHOUT ROWID;
+
+-- 前十大股东合计持股占比（按报告期）
+CREATE TABLE IF NOT EXISTS top10_holders(
+    symbol       TEXT NOT NULL,
+    end_date     TEXT NOT NULL,    -- 报告期末 YYYY-MM-DD
+    top10_ratio  REAL,             -- 前十大股东持股合计占总股本 %
+    PRIMARY KEY(symbol, end_date)
+) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS idx_top10_end ON top10_holders(end_date);
 
 CREATE TABLE IF NOT EXISTS financials(
     symbol         TEXT NOT NULL,

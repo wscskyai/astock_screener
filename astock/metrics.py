@@ -33,6 +33,7 @@ PERIODS = [
 PERIOD_MONTH = {"q1": "03-31", "h1": "06-30", "q3": "09-30", "annual": "12-31"}
 YEARS: list[int] = []          # 财务里实际存在的年份，metrics() 首次调用后填充
 HOLDER_YEARS: list[int] = []   # 股东户数里存在的年份
+TOP10_YEARS: list[int] = []    # 前十大股东占比里存在的年份
 HOLDER_END: dict[int, str] = {}  # 年份 → 该年最后一个季末
 MIN_YEAR = 2016                # 太早的年份不展开成列（节省内存）
 MIN_HOLDER_YEAR = 2019
@@ -41,6 +42,14 @@ HOLDER_OPTS = [
     {"k": "1", "label": "近 1 季"},
     {"k": "2", "label": "近 2 季"},
     {"k": "3", "label": "近 3 季"},
+]
+
+TOP10_OPTS = [
+    {"k": "latest", "label": "当季（最新一期）"},
+    {"k": "q1", "label": "一季报"},
+    {"k": "h1", "label": "半年报"},
+    {"k": "q3", "label": "三季报"},
+    {"k": "annual", "label": "年报"},
 ]
 
 FLAG_POLE_OPTS = [
@@ -132,6 +141,8 @@ FIELDS = [
     {"k": "holder_num",   "label": "股东户数",    "unit": "户", "cat": "筹码", "dec": 0,
      "options": HOLDER_OPTS},
     {"k": "drop_pct",     "label": "户数三季降幅", "unit": "%", "cat": "筹码", "dec": 1},
+    {"k": "top10_ratio",  "label": "前十大股东持股占比", "unit": "%", "cat": "筹码", "dec": 2,
+     "options": TOP10_OPTS, "yearSource": "top10"},
     {"k": "profit_yi",    "label": "近三季净利",  "unit": "亿", "cat": "财务", "dec": 2},
     {"k": "roe",          "label": "ROE(年化)",   "unit": "%",  "cat": "财务", "dec": 1, "period": True},
     {"k": "yoy",          "label": "净利同比(累计)", "unit": "%", "cat": "财务", "dec": 1, "period": True},
@@ -250,6 +261,31 @@ def _build(conn: sqlite3.Connection, now: float) -> pd.DataFrame:
                 chg = (1 - hp / hp.shift(axis=1, periods=n)) * 100
                 for c in hdates:
                     add[f"holder_chg@{c}@{n}"] = chg[c].round(2)
+
+    # ---------------- 前十大股东合计持股占比：最新一期 + 各报告期类型 + 年份
+    t = query._q(conn, """
+        SELECT symbol, end_date, top10_ratio FROM top10_holders
+        WHERE top10_ratio IS NOT NULL
+        ORDER BY symbol, end_date
+    """)
+    if not t.empty:
+        t = t[t["end_date"].str[5:].isin(["03-31", "06-30", "09-30", "12-31"])].copy()
+        t = t.drop_duplicates(["symbol", "end_date"], keep="last")
+        t = t.sort_values(["symbol", "end_date"])
+        latest = t.groupby("symbol").tail(1).set_index("symbol")
+        add["top10_ratio"] = latest["top10_ratio"].astype(float)
+        for key, month in (("q1", "03"), ("h1", "06"), ("q3", "09"), ("annual", "12")):
+            sub = t[t["end_date"].str[5:7] == month]
+            if sub.empty:
+                continue
+            last = sub.groupby("symbol").tail(1).set_index("symbol")
+            add[f"top10_ratio@{key}"] = last["top10_ratio"].astype(float)
+        global TOP10_YEARS
+        TOP10_YEARS = sorted({int(x[:4]) for x in t["end_date"].unique()}, reverse=True)
+        pv = t.pivot_table(index="symbol", columns="end_date", values="top10_ratio",
+                           aggfunc="last").sort_index(axis=1)
+        pv.columns = [f"top10_ratio@{c}" for c in pv.columns]
+        wide_parts.append(pv)
 
     # ---------------- 财务：最新一期 + 各报告期类型各取最近一期
     f = query._q(conn, """

@@ -26,6 +26,7 @@ if ROOT not in sys.path:
 
 from astock import db
 from astock import sources_cn as src
+from astock import sync as sync_mod
 
 BARS_COLS = ["symbol", "date", "open", "high", "low", "close", "volume"]
 HOLDER_COLS = ["symbol", "end_date", "announce_date", "holder_num", "chg_pct", "avg_mktcap"]
@@ -226,6 +227,13 @@ def cmd_update(args) -> int:
                     fb = []
         db.upsert(conn, "financials", FIN_COLS, fb)
         conn.commit()
+
+        log("刷新前十大股东占比 …")
+        try:
+            res = sync_mod.sync_top10(conn)
+            log(f"  前十大股东占比：{res}")
+        except Exception as e:  # noqa: BLE001
+            log(f"  前十大股东占比失败：{type(e).__name__}: {e}")
 
     db.set_meta(conn, "update_at", datetime.now().isoformat(timespec="seconds"))
     conn.commit()
