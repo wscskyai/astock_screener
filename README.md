@@ -315,6 +315,30 @@ python tools/build.py checkpoint --drop-shm   # 合并 WAL、删掉 -shm（切�
 > 说明：东财对指数返回的第 8 个字段不是「均价」（数值会落在当日高低点之外），
 > 所以分时图只画价格线，没有均价线。
 
+### 指数页报「K线获取失败 / 数据加载失败」怎么查
+
+1. **先确认 5001 是容器在服务**。本机如果还跑着一个旧的 `web/app.py`，它会占用
+   `127.0.0.1:5001`，浏览器的 `localhost:5001` 会优先命中它（老代码没有兜底），
+   于是只有指数页报错。检查：
+
+   ```powershell
+   Get-NetTCPConnection -LocalPort 5001 | Select-Object LocalAddress, OwningProcess
+   # 127.0.0.1 的 OwningProcess 若是 python.exe → 杀掉它，或先 docker compose down
+   ```
+
+   `web/启动.bat` 现在会检测到容器在跑时直接提示并退出。
+
+2. **东财 push2his 偶尔整段不可用**（`RemoteDisconnected` / 502），而我们过去只用它取
+   指数分时和 K 线。现在 `sources_cn` 里所有指数接口都有**腾讯兜底**：
+
+   | 接口 | 主源 | 兜底 |
+   |---|---|---|
+   | 批量行情 | 东财 ulist | 腾讯 `qt.gtimg.cn` |
+   | 分时（1/5 日） | 东财 trends2 | 腾讯 `day/query`（含每天昨收，开盘不足 2 个点退上一交易日） |
+   | 日/周/月 K | 东财 push2his | 腾讯 `ifzq.gtimg.cn/fqkline` |
+
+   返回里 `source` 字段会标 `em` 或 `tx`，出问题一眼能看出走的哪条路。
+
 ### 指数 PE / 估值（调研结论：免费源拿不到）
 
 试过的接口都不给指数估值：

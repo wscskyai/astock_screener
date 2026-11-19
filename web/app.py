@@ -18,6 +18,7 @@ import json
 import os
 import sys
 import threading
+import traceback
 import time
 import uuid
 from datetime import datetime
@@ -1200,6 +1201,7 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 self._json(src.fetch_index_minute(secid, max(1, min(5, days))))
             except Exception as e:  # noqa: BLE001
+                log(f"分时获取失败：{e} | {traceback.format_exc().splitlines()[-3].strip()}")
                 self._json({"error": f"分时数据获取失败：{e}"}, 502)
             status = "200"
         elif path == "/api/index/quotes":
@@ -1208,6 +1210,7 @@ class Handler(BaseHTTPRequestHandler):
                             "ths": {x["code"]: src.ths_url(x["code"])
                                     for x in src.INDEX_LIST}})
             except Exception as e:  # noqa: BLE001
+                log(f"指数行情失败：{e} | {traceback.format_exc().splitlines()[-3].strip()}")
                 self._json({"error": f"指数行情获取失败：{e}"}, 502)
             status = "200"
         elif path == "/api/index/kline":
@@ -1219,6 +1222,7 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 self._json(src.fetch_index_kline(secid, period, max(60, min(600, n))))
             except Exception as e:  # noqa: BLE001
+                log(f"K线获取失败：{e} | {traceback.format_exc().splitlines()[-3].strip()}")
                 self._json({"error": f"K线获取失败：{e}"}, 502)
             status = "200"
         elif path == "/api/favorites_list":

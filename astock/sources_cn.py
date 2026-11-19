@@ -621,6 +621,157 @@ EM_ULIST = ("https://push2.eastmoney.com/api/qt/ulist.np/get?fltt=2&invt=2&secid
             "&fields=f1,f2,f3,f4,f6,f12,f14,f15,f16,f17,f18")
 
 
+# ---------------------------------------------------------------- 腾讯（东财兜底）
+TX_IDX_SYM = {
+    "000001": "sh000001", "399001": "sz399001", "399006": "sz399006",
+    "000688": "sh000688", "899050": "bj899050", "000680": "sh000680",
+    "000300": "sh000300", "000905": "sh000905", "000852": "sh000852",
+    "000016": "sh000016", "000985": "sh000985", "HSI": "hkHSI",
+}
+TX_IDX_KLINE = ("https://ifzq.gtimg.cn/appstock/app/fqkline/get"
+                "?param={sym},{period},,,{n},qfq")
+TX_DAY_QUERY = "https://web.ifzq.gtimg.cn/appstock/app/day/query?code={sym}"
+TX_IDX_QUOTE = "https://qt.gtimg.cn/q={symbols}"
+
+
+def idx_code(secid: str) -> str:
+    hit = next((x for x in INDEX_LIST if x["secid"] == secid), None)
+    return hit["code"] if hit else "000001"
+
+
+def idx_name(secid: str) -> str:
+    hit = next((x for x in INDEX_LIST if x["secid"] == secid), None)
+    return hit["name"] if hit else ""
+
+
+def idx_tx_sym(secid: str) -> str:
+    return TX_IDX_SYM.get(idx_code(secid), "sh000001")
+
+
+def _tx_index_kline(secid: str, period: str, n: int) -> list[list]:
+    """腾讯 K 线：[[date, open, high, low, close, volume, amount], ...]"""
+    sym = idx_tx_sym(secid)
+    p = period if period in ("day", "week", "month") else "day"
+    j = json.loads(get(TX_IDX_KLINE.format(sym=sym, period=p, n=n), TX_HDR,
+                       timeout=12, retries=2))
+    node = (j.get("data") or {}).get(sym) or {}
+    rows = node.get(p) or []
+    bars = []
+    for r in rows[-n:]:
+        # 腾讯行格式：[日期, 开, 收, 高, 低, 量]
+        try:
+            bars.append([r[0], float(r[1]), float(r[3]), float(r[4]), float(r[2]),
+                         float(r[5]), 0.0])
+        except (ValueError, IndexError, TypeError):
+            continue
+    return bars
+
+
+def _tx_index_minute(secid: str, days: int = 1) -> dict:
+    """腾讯分时（day/query 一次给 5 天，含每天的昨收）。"""
+    sym = idx_tx_sym(secid)
+    j = json.loads(get(TX_DAY_QUERY.format(sym=sym), TX_HDR, timeout=12, retries=2))
+    node = (j.get("data") or {}).get(sym) or {}
+    day_list = node.get("data") or []
+    if not day_list:
+        raise RuntimeError("腾讯分时没有数据")
+    # 按日期升序，顺序不依赖接口返回顺序
+    day_list = sorted(day_list, key=lambda d: str(d.get("date") or ""))
+
+    if days > 1:
+        use = day_list
+    else:
+        # 最近一天；如果刚开盘只有 1 个点，退回上一个完整交易日（和看盘软件一致）
+        last = day_list[-1]
+        if len(last.get("data") or []) >= 2 or len(day_list) == 1:
+            use = [last]
+        else:
+            use = [day_list[-2]]
+
+    points = []
+    total_vol = total_amt = 0.0
+    for d in use:
+        date = str(d.get("date") or "")
+        label = f"{date[4:6]}-{date[6:8]}" if len(date) == 8 else date
+        for row in (d.get("data") or []):
+            parts = str(row).split()
+            if len(parts) < 4:
+                continue
+            hhmm, price, vol, amt = parts[0], parts[1], parts[2], parts[3]
+            if len(hhmm) < 4:
+                continue
+            try:
+                pv, vv, av = float(price), float(vol), float(amt)
+            except ValueError:
+                continue
+            t = f"{hhmm[:2]}:{hhmm[2:4]}"
+            points.append([f"{label} {t}" if days > 1 else t, round(pv, 3), round(vv, 0)])
+            total_vol += vv
+            total_amt += av
+
+    pre = None
+    # 1 日：用当天自己的昨收；5 日：用第一天之前的昨收（和东财口径一致）
+    ref_day = use[0] if days > 1 else use[-1]
+    try:
+        pre = float(ref_day.get("prec") or 0) or None
+    except (TypeError, ValueError):
+        pre = None
+
+    last = points[-1][1] if points else None
+    quote = {
+        "name": idx_name(secid),
+        "price": last,
+        "preClose": pre,
+        "change": round(last - pre, 2) if (last is not None and pre) else None,
+        "pct": round((last / pre - 1) * 100, 2) if (last is not None and pre) else None,
+        "amount": round(total_amt / 1e8, 1) if total_amt else None,
+        "volume": round(total_vol / 1e4, 1) if total_vol else None,
+    }
+    if points:
+        prices = [p[1] for p in points]
+        quote["high"] = max(prices)
+        quote["low"] = min(prices)
+        quote["open"] = points[0][1]
+    return {"name": quote["name"], "preClose": pre, "points": points, "quote": quote,
+            "source": "tx"}
+
+
+def _tx_index_quotes() -> list[dict]:
+    """腾讯实时行情兜底（GBK 编码，只取数字字段）。"""
+    syms = ",".join(idx_tx_sym(x["secid"]) for x in INDEX_LIST)
+    req = urllib.request.Request(TX_IDX_QUOTE.format(symbols=syms), headers=TX_HDR)
+    with urllib.request.urlopen(req, timeout=12) as r:
+        txt = r.read().decode("gbk", "ignore")
+    fields = {}
+    for line in txt.split(";"):
+        line = line.strip()
+        if not line.startswith("v_"):
+            continue
+        sym = line[2:].split("=")[0]
+        fields[sym] = line.split("~")
+
+    def fnum(parts, i):
+        try:
+            return float(parts[i])
+        except (IndexError, TypeError, ValueError):
+            return None
+
+    out = []
+    for meta in INDEX_LIST:
+        parts = fields.get(idx_tx_sym(meta["secid"])) or []
+        price, pre = fnum(parts, 3), fnum(parts, 4)
+        amount = fnum(parts, 37)      # 万元
+        out.append({
+            "code": meta["code"], "name": meta["name"],
+            "price": price, "pct": fnum(parts, 32),
+            "high": fnum(parts, 33), "low": fnum(parts, 34),
+            "open": fnum(parts, 5), "preClose": pre,
+            "change": round(price - pre, 2) if (price is not None and pre) else None,
+            "amount": round(amount / 1e4, 1) if amount else None,
+        })
+    return out
+
+
 def fetch_index_quotes() -> list[dict]:
     """一次拿所有指数的当日行情（涨跌幅、最高最低、成交额）。"""
     import time as _t
@@ -632,7 +783,13 @@ def fetch_index_quotes() -> list[dict]:
             return hit[1]
 
     secids = ",".join(x["secid"] for x in INDEX_LIST)
-    j = json.loads(get(EM_ULIST.format(secids=secids), LIST_HDR, timeout=12, retries=2))
+    try:
+        j = json.loads(get(EM_ULIST.format(secids=secids), LIST_HDR, timeout=12, retries=2))
+    except Exception:  # noqa: BLE001
+        out = _tx_index_quotes()
+        with _IDX_LOCK:
+            _IDX_CACHE["quotes"] = (now, out)
+        return out
     diff = (j.get("data") or {}).get("diff") or []
     by_code = {}
     for d in diff:
@@ -684,7 +841,14 @@ def fetch_index_minute(secid: str, days: int = 1) -> dict:
         if hit and now - hit[0] < _IDX_TTL:
             return hit[1]
 
-    j = json.loads(get(EM_TRENDS.format(secid=secid, days=days), LIST_HDR, timeout=12, retries=2))
+    try:
+        j = json.loads(get(EM_TRENDS.format(secid=secid, days=days), LIST_HDR,
+                           timeout=12, retries=2))
+    except Exception:  # noqa: BLE001  东财 push2his 挂了就走腾讯
+        data = _tx_index_minute(secid, days)
+        with _IDX_LOCK:
+            _IDX_CACHE[key] = (now, data)
+        return data
     d = (j.get("data") or {})
     trends = d.get("trends") or []
     pre = float(d.get("preClose") or 0) or None
@@ -750,7 +914,14 @@ def fetch_index_kline(secid: str, period: str = "day", n: int = 250) -> dict:
             return hit[1]
 
     url = EM_IDX_KLINE.format(secid=secid, klt=klt, n=n)
-    j = json.loads(get(url, LIST_HDR, timeout=12, retries=2))
+    try:
+        j = json.loads(get(url, LIST_HDR, timeout=12, retries=2))
+    except Exception:  # noqa: BLE001  东财 push2his 挂了就走腾讯
+        data = {"name": idx_name(secid), "period": period,
+                "bars": _tx_index_kline(secid, period, n), "source": "tx"}
+        with _IDX_LOCK:
+            _KLINE_CACHE[key] = (now, data)
+        return data
     d = j.get("data") or {}
     bars = []
     for k in (d.get("klines") or [])[-n:]:
